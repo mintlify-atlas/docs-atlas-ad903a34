@@ -1,0 +1,71 @@
+{
+  "projectType": "general",
+  "projectName": "Mars-RS",
+  "projectDescription": "A WebAssembly-based robotics simulation and path planning tool for VEX competitions, featuring autonomous movement algorithms and interactive path creation.",
+  "theme": "aspen",
+  "primaryColor": "#6F2232",
+  "lightColor": "#C792DF",
+  "darkColor": "#221D2F",
+  "navigation": {
+    "groups": [
+      {
+        "group": "Get Started",
+        "pages": [
+          "introduction",
+          "quickstart",
+          "installation"
+        ]
+      },
+      {
+        "group": "User Guide",
+        "pages": [
+          "guides/driver-mode",
+          "guides/autonomous-mode",
+          "guides/path-creation",
+          "guides/field-layout"
+        ]
+      },
+      {
+        "group": "Core Concepts",
+        "pages": [
+          "concepts/movement-algorithms",
+          "concepts/pid-control",
+          "concepts/pure-pursuit",
+          "concepts/robot-physics"
+        ]
+      },
+      {
+        "group": "API Reference",
+        "pages": [
+          "api/robot",
+          "api/movement",
+          "api/driver",
+          "api/paths",
+          "api/field",
+          "api/util"
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "WebAssembly-based robotics simulation",
+    "Interactive path creation and editing",
+    "Multiple autonomous movement algorithms (PID, Pure Pursuit, Boomerang)",
+    "Real-time field visualization",
+    "Driver control and autonomous modes",
+    "VEX Robotics competition field simulation"
+  ],
+  "publicApiSurface": [
+    "Robot struct (position, heading, render, step)",
+    "pidMTP - PID-based move-to-point",
+    "boomerang - Curved path movement",
+    "followPath - Multi-waypoint path following",
+    "moveToPurePursuit - Pure pursuit path following",
+    "eulerTurn - Smooth turning with variable curvature",
+    "drive - Keyboard-based driver control",
+    "Field rendering and game element simulation",
+    "Triball physics simulation",
+    "PID controller utilities",
+    "Path creation and editing tools"
+  ]
+}
