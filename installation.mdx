@@ -1,0 +1,388 @@
+---
+title: Installation
+description: Set up your development environment for Mars-RS
+---
+
+Mars-RS is built with Rust and compiled to WebAssembly for browser-based execution. This guide will walk you through setting up your development environment.
+
+## System Requirements
+
+<CardGroup cols={2}>
+  <Card title="Operating System" icon="desktop">
+    Linux, macOS, or Windows with WSL2
+  </Card>
+  
+  <Card title="Memory" icon="memory">
+    Minimum 4GB RAM (8GB recommended)
+  </Card>
+  
+  <Card title="Storage" icon="hard-drive">
+    At least 2GB free disk space
+  </Card>
+  
+  <Card title="Browser" icon="browser">
+    Modern browser with WebAssembly support
+  </Card>
+</CardGroup>
+
+## Installing Rust
+
+<Steps>
+  <Step title="Install rustup">
+    The Rust toolchain manager `rustup` is the recommended way to install Rust.
+    
+    <CodeGroup>
+    ```bash Linux/macOS
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+    ```
+    
+    ```bash Windows
+    # Download and run rustup-init.exe from:
+    # https://rustup.rs/
+    ```
+    </CodeGroup>
+    
+    After installation, restart your terminal or run:
+    ```bash
+    source $HOME/.cargo/env
+    ```
+  </Step>
+
+  <Step title="Verify installation">
+    Check that Rust is properly installed:
+    ```bash
+    rustc --version
+    cargo --version
+    ```
+    
+    You should see version 1.56 or later.
+  </Step>
+
+  <Step title="Add WebAssembly target">
+    Mars-RS compiles to WebAssembly, so you need to add the WASM target:
+    ```bash
+    rustup target add wasm32-unknown-unknown
+    ```
+    
+    <Note>
+    The `wasm32-unknown-unknown` target compiles Rust to WebAssembly without any platform-specific bindings.
+    </Note>
+  </Step>
+</Steps>
+
+## Project Dependencies
+
+Mars-RS relies on three primary dependencies defined in `Cargo.toml`:
+
+```toml
+[package]
+name = "mars-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+macroquad = "0.3"
+rapier2d = { version = "0.17.2", features = ["simd-stable"] }
+nalgebra = { version = "0.32.3", features = ["convert-glam015"] }
+```
+
+### Core Dependencies
+
+<AccordionGroup>
+  <Accordion title="macroquad 0.3" icon="gamepad">
+    A simple and easy-to-use game library for graphics rendering and input handling.
+    
+    **Key Features:**
+    - Cross-platform graphics rendering
+    - WebAssembly support out of the box
+    - Built-in UI system for buttons and controls
+    - Input handling for keyboard and mouse
+    
+    Used in Mars-RS for:
+    - Rendering the VEX field and game objects
+    - Drawing the robot and triballs
+    - Handling user input in Driver mode
+    - Creating the UI for mode switching
+  </Accordion>
+
+  <Accordion title="rapier2d 0.17.2" icon="atom">
+    A 2D physics engine for Rust with WebAssembly support.
+    
+    **Configuration:**
+    ```toml
+    features = ["simd-stable"]
+    ```
+    
+    The `simd-stable` feature enables SIMD optimizations for better performance while maintaining stability across platforms.
+    
+    <Warning>
+    While rapier2d is included in dependencies, physics simulation is currently in development. The `physics.rs` file is empty in the current implementation.
+    </Warning>
+  </Accordion>
+
+  <Accordion title="nalgebra 0.32.3" icon="calculator">
+    A linear algebra library for graphics and physics computations.
+    
+    **Configuration:**
+    ```toml
+    features = ["convert-glam015"]
+    ```
+    
+    This feature enables conversion between nalgebra and glam math types, which is necessary for interoperability with macroquad.
+    
+    Used in Mars-RS for:
+    - Vector and matrix transformations
+    - Rotation calculations
+    - Position and velocity computations
+  </Accordion>
+</AccordionGroup>
+
+## Building the Project
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/your-org/mars-rs.git
+    cd mars-rs
+    ```
+  </Step>
+
+  <Step title="Install dependencies">
+    Cargo will automatically download and compile all dependencies:
+    ```bash
+    cargo build
+    ```
+    
+    This may take several minutes on the first build as Cargo compiles all dependencies.
+  </Step>
+
+  <Step title="Build for WebAssembly">
+    Compile the project to WebAssembly:
+    ```bash
+    cargo build --target wasm32-unknown-unknown --release
+    ```
+    
+    The `--release` flag enables optimizations for better performance.
+    
+    <Note>
+    The output file will be at `target/wasm32-unknown-unknown/release/mars-rs.wasm`
+    </Note>
+  </Step>
+
+  <Step title="Copy WASM file">
+    Copy the compiled WASM file to your project root (or wherever `index.html` is located):
+    ```bash
+    cp target/wasm32-unknown-unknown/release/mars-rs.wasm .
+    ```
+  </Step>
+</Steps>
+
+## Project Structure
+
+Understanding the codebase organization:
+
+```
+mars-rs/
+├── src/
+│   ├── main.rs          # Entry point and main game loop
+│   ├── robot.rs         # Robot struct and rendering
+│   ├── field.rs         # VEX field and triball rendering
+│   ├── movement.rs      # Autonomous movement algorithms
+│   ├── driver.rs        # Manual control logic
+│   ├── ui.rs            # User interface and mode switching
+│   ├── util.rs          # PID controllers and helper functions
+│   ├── paths.rs         # Path definition and manipulation
+│   └── physics.rs       # Physics simulation (in development)
+├── Cargo.toml           # Project dependencies
+├── index.html           # Web page for WASM loading
+└── mars-rs.wasm         # Compiled WebAssembly binary
+```
+
+### Key Modules
+
+<CardGroup cols={2}>
+  <Card title="main.rs" icon="circle-play">
+    Contains the main game loop using macroquad's `#[macroquad::main]` attribute
+  </Card>
+  
+  <Card title="robot.rs" icon="robot">
+    Defines the `Robot` struct with position, heading, and differential drive kinematics
+  </Card>
+  
+  <Card title="field.rs" icon="map">
+    Renders the VEX field with checkerboard tiles, goals, barriers, and triballs
+  </Card>
+  
+  <Card title="movement.rs" icon="arrow-trend-up">
+    Implements PID control, Pure Pursuit, and Boomerang path following
+  </Card>
+</CardGroup>
+
+## Development Workflow
+
+### Fast Iteration
+
+For quick development iterations, use cargo's watch mode:
+
+```bash
+cargo install cargo-watch
+cargo watch -x 'build --target wasm32-unknown-unknown'
+```
+
+This automatically rebuilds when you save changes to source files.
+
+### Debugging
+
+<CodeGroup>
+```bash Check syntax
+cargo check
+```
+
+```bash Run tests
+cargo test
+```
+
+```bash Format code
+cargo fmt
+```
+
+```bash Run linter
+cargo clippy
+```
+</CodeGroup>
+
+## Web Server Setup
+
+Mars-RS requires a web server to load the WASM module due to browser security restrictions.
+
+<Accordion title="Python (Built-in)">
+  If you have Python installed:
+  ```bash
+  python -m http.server 8000
+  ```
+  
+  Navigate to `http://localhost:8000`
+</Accordion>
+
+<Accordion title="Node.js http-server">
+  Install and run with npx:
+  ```bash
+  npx http-server -p 8000
+  ```
+  
+  Or install globally:
+  ```bash
+  npm install -g http-server
+  http-server -p 8000
+  ```
+</Accordion>
+
+<Accordion title="Rust basic-http-server">
+  Install a Rust-based server:
+  ```bash
+  cargo install basic-http-server
+  basic-http-server .
+  ```
+  
+  Defaults to port 4000
+</Accordion>
+
+## HTML Setup
+
+The `index.html` file loads the WebAssembly module:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>mars-rs</title>
+    <style>
+        html, body, canvas {
+            margin: 0px;
+            padding: 0px;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            position: absolute;
+            background: white;
+            z-index: 0;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="glcanvas" tabindex='1'></canvas>
+    <script src="https://not-fl3.github.io/miniquad-samples/mq_js_bundle.js"></script>
+    <script>load("mars-rs.wasm");</script>
+</body>
+</html>
+```
+
+<Note>
+The macroquad JavaScript bundle (`mq_js_bundle.js`) is loaded from a CDN. Make sure you have an internet connection when running the simulation.
+</Note>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="rustup: command not found">
+    If `rustup` is not in your PATH after installation:
+    
+    ```bash
+    # Add to ~/.bashrc or ~/.zshrc
+    export PATH="$HOME/.cargo/bin:$PATH"
+    ```
+    
+    Then restart your terminal or run:
+    ```bash
+    source ~/.bashrc
+    ```
+  </Accordion>
+
+  <Accordion title="wasm32-unknown-unknown target not found">
+    Make sure you've added the WebAssembly target:
+    ```bash
+    rustup target add wasm32-unknown-unknown
+    rustup target list --installed
+    ```
+  </Accordion>
+
+  <Accordion title="Compilation errors with dependencies">
+    Try updating the Rust toolchain and cleaning the build:
+    ```bash
+    rustup update
+    cargo clean
+    cargo build --target wasm32-unknown-unknown --release
+    ```
+  </Accordion>
+
+  <Accordion title="WASM file not loading in browser">
+    Check the browser console for errors. Common issues:
+    
+    - **CORS errors**: Use a proper web server, not `file://` URLs
+    - **Wrong path**: Verify `index.html` references the correct WASM filename
+    - **Missing JavaScript**: Ensure the macroquad bundle loads before your WASM
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+Now that you have Mars-RS installed and building:
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Run your first simulation and try the controls
+  </Card>
+  
+  <Card title="Robot API" icon="code" href="/api/robot">
+    Learn about the Robot struct and movement functions
+  </Card>
+  
+  <Card title="Movement Algorithms" icon="chart-line" href="/api/movement">
+    Explore PID tuning and path following
+  </Card>
+  
+  <Card title="Field Rendering" icon="border-all" href="/api/field">
+    Understand the VEX field layout and game objects
+  </Card>
+</CardGroup>

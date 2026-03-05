@@ -1,0 +1,332 @@
+---
+title: 'Paths'
+description: 'Path creation, editing, and Bezier curve utilities'
+icon: 'bezier-curve'
+---
+
+## Overview
+
+The paths module provides UI tools for creating and editing robot paths, along with Bezier curve utilities for smooth motion planning. It includes an interactive path editor with save/load functionality.
+
+## UI Functions
+
+### paths
+
+```rust
+impl ui::Ui {
+    pub fn paths(&mut self, mode: ui::CreateState)
+}
+```
+
+Renders the path creation/editing UI and handles user interaction with waypoints.
+
+<ParamField path="mode" type="ui::CreateState" required>
+  Current UI mode: Draw, Edit, Save, or Load
+</ParamField>
+
+**Behavior:**
+- Displays existing path waypoints as red circles
+- Draws lines connecting waypoints
+- Allows dragging waypoints to reposition them
+- Supports waypoint deletion with Backspace key
+- Provides New Path, Edit Path, Save Path, and Load Path buttons
+
+**Interaction:**
+- **Click** to add new waypoints (in Draw mode)
+- **Click and drag** on waypoint to move it (in Edit mode)
+- **Hover** over waypoint to highlight it (turns bright red)
+- **Backspace** while hovering to delete waypoint
+
+**Example:**
+
+```rust
+use mars_rs::ui::{Ui, State, CreateState};
+
+let mut ui = Ui::new();
+ui.set(State::Create(CreateState::Draw));
+
+// In your game loop
+match ui.state {
+    State::Create(mode) => {
+        ui.paths(mode);
+    },
+    _ => {}
+}
+```
+
+<Note>
+  Waypoints are stored in `ui.path` as a `Vec<(f32, f32)>`. The editing state is tracked in `ui.editing` as an index.
+</Note>
+
+## UI States
+
+### CreateState Enum
+
+```rust
+pub enum CreateState {
+    Draw,
+    Edit,
+    Save,
+    Load
+}
+```
+
+<CardGroup cols={2}>
+  <Card title="Draw" icon="pen">
+    Create new paths by clicking to place waypoints
+  </Card>
+  <Card title="Edit" icon="pen-to-square">
+    Modify existing paths by dragging waypoints
+  </Card>
+  <Card title="Save" icon="floppy-disk">
+    Save path to console output (prints waypoint coordinates)
+  </Card>
+  <Card title="Load" icon="folder-open">
+    Load path from file (functionality to be implemented)
+  </Card>
+</CardGroup>
+
+## Bezier Struct
+
+```rust
+pub struct Bezier {
+    pub points: (f32, f32, f32, f32)
+}
+```
+
+Represents a Bezier curve for smooth path interpolation.
+
+<ParamField path="points" type="(f32, f32, f32, f32)">
+  Bezier curve control points. The exact representation depends on the Bezier type (cubic, quadratic, etc.)
+</ParamField>
+
+### Methods
+
+#### length
+
+```rust
+pub fn length(&self) -> f32
+```
+
+Calculates the arc length of the Bezier curve.
+
+**Returns:** `f32` - Total length of the curve
+
+**Example:**
+
+```rust
+use mars_rs::paths::Bezier;
+
+let curve = Bezier {
+    points: (0.0, 0.0, 100.0, 100.0)
+};
+
+let length = curve.length();
+println!("Curve length: {}", length);
+```
+
+<Warning>
+  The current implementation returns 0.0. This is a placeholder that should be implemented based on your specific Bezier curve type and numerical integration method.
+</Warning>
+
+#### curvature
+
+```rust
+pub fn curvature(&self, t: f32) -> f32
+```
+
+Calculates the curvature of the Bezier curve at parameter t.
+
+<ParamField path="t" type="f32" required>
+  Parameter value along the curve (typically 0.0 to 1.0)
+</ParamField>
+
+**Returns:** `f32` - Curvature value at the given point
+
+**Example:**
+
+```rust
+use mars_rs::paths::Bezier;
+
+let curve = Bezier {
+    points: (0.0, 0.0, 100.0, 100.0)
+};
+
+// Get curvature at midpoint
+let k = curve.curvature(0.5);
+println!("Curvature at midpoint: {}", k);
+```
+
+<Warning>
+  The current implementation returns 0.0. This is a placeholder for curvature calculation.
+</Warning>
+
+## Complete Path Editor Example
+
+```rust
+use mars_rs::{ui::{Ui, State, CreateState}, field::Field};
+use macroquad::prelude::*;
+
+#[macroquad::main("Path Editor")]
+async fn main() {
+    let mut ui = Ui::new();
+    let mut field = Field::new();
+    
+    // Start in Draw mode
+    ui.set(State::Create(CreateState::Draw));
+    
+    loop {
+        clear_background(WHITE);
+        
+        // Render field
+        field.render();
+        
+        // Handle path editing
+        if let State::Create(mode) = ui.state {
+            ui.paths(mode);
+        }
+        
+        // Display instructions
+        draw_text("Click to add waypoints", 10.0, 30.0, 20.0, BLACK);
+        draw_text("Hover + Backspace to delete", 10.0, 50.0, 20.0, BLACK);
+        draw_text(&format!("Waypoints: {}", ui.path.len()), 10.0, 70.0, 20.0, BLACK);
+        
+        next_frame().await;
+    }
+}
+```
+
+## Using Paths with Movement
+
+```rust
+use mars_rs::{
+    robot::Robot,
+    movement,
+    util,
+    ui::{Ui, State, CreateState}
+};
+use std::sync::{Arc, Mutex};
+
+let mut ui = Ui::new();
+ui.set(State::Create(CreateState::Draw));
+
+// After creating path in UI
+let path = ui.path.clone();
+
+let robot = Arc::new(Mutex::new(Robot {
+    position: path[0],  // Start at first waypoint
+    heading: 0.0,
+    robotSize: 30.0
+}));
+
+let pid_constants = util::PidConstants {
+    p: 0.05,
+    i: 0.0,
+    d: 0.0,
+    tolerance: 5.0,
+    integralThreshold: 50.0,
+    maxIntegral: 100.0
+};
+
+// Follow the created path
+movement::followPath(
+    &robot,
+    path,
+    10000,  // 10 second timeout
+    0.5,
+    0.0,
+    90.0,
+    pid_constants,
+    pid_constants,
+    0.5
+);
+```
+
+## Path Persistence
+
+### Saving Paths
+
+When Save Path is clicked, the path is printed to console:
+
+```rust
+// Output format:
+// [(x1, y1), (x2, y2), (x3, y3), ...]
+println!("{:?}", self.path);
+```
+
+You can copy this output and use it in your code:
+
+```rust
+let saved_path = vec![
+    (400.0, 300.0),
+    (450.0, 350.0),
+    (500.0, 400.0),
+    (550.0, 450.0)
+];
+```
+
+### Loading Paths
+
+The Load functionality is currently a stub. To implement:
+
+1. Use file I/O to read saved paths
+2. Parse the coordinates
+3. Set `ui.path` to the loaded waypoints
+
+```rust
+use std::fs;
+
+// Example implementation
+let contents = fs::read_to_string("path.json")?;
+let loaded_path: Vec<(f32, f32)> = serde_json::from_str(&contents)?;
+ui.path = loaded_path;
+```
+
+## UI Integration
+
+### Button Layout
+
+Buttons appear at the top of the screen:
+
+- **New Path** (x: 130, y: 8) - Switches to Draw mode
+- **Edit Path** (x: 193, y: 8) - Switches to Edit mode  
+- **Save Path** (x: 263, y: 8) - Prints path to console
+- **Load Path** (x: 333, y: 8) - Loads saved path
+
+### Visual Feedback
+
+- **Normal waypoint:** Small red circle (4px radius)
+- **Hovered waypoint:** Large red circle (8px radius)
+- **Connecting lines:** Black lines (3px width)
+
+## Advanced: Bezier Motion Profiles
+
+The module includes a work-in-progress function for Bezier-based motion profiling:
+
+```rust
+pub fn bezier2dMotionProfile(
+    path: paths::Bezier,
+    maxSpeed: f32,
+    accel: f32,
+    decel: f32,
+    resolution: i32,
+    track: f32
+)
+```
+
+This function will generate velocity profiles along Bezier curves considering:
+- Maximum speed constraints
+- Acceleration limits
+- Deceleration limits
+- Curvature-based speed reduction
+- Differential drive kinematics
+
+<Note>
+  The motion profile function is not yet complete. It's intended for advanced users who want smooth, physically-constrained motion along curves.
+</Note>
+
+## See Also
+
+- [Movement](/api/movement) - Functions for following paths
+- [Util](/api/util) - Distance calculation for waypoint editing
+- [Field](/api/field) - Field rendering with paths

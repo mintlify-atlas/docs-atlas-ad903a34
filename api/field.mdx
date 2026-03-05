@@ -1,0 +1,391 @@
+---
+title: 'Field'
+description: 'VEX Over Under field and game element rendering'
+icon: 'grid'
+---
+
+## Overview
+
+The field module renders the VEX Robotics Over Under game field and triballs (game elements). It handles field scaling, checkerboard patterns, game-specific markings, and triball physics rendering.
+
+## Field Struct
+
+```rust
+pub struct Field {
+    size: f32,
+    pos: (f32, f32),
+    triballs: Vec<Triball>,
+}
+```
+
+<ParamField path="size" type="f32">
+  Field size in pixels (represents 12x12 feet)
+</ParamField>
+
+<ParamField path="pos" type="(f32, f32)">
+  Top-left corner position of the field on screen
+</ParamField>
+
+<ParamField path="triballs" type="Vec<Triball>">
+  Collection of game elements on the field
+</ParamField>
+
+### Methods
+
+#### new
+
+```rust
+pub fn new() -> Field
+```
+
+Creates a new field instance with automatic sizing and centering.
+
+**Returns:** `Field` - Initialized field structure
+
+**Example:**
+
+```rust
+use mars_rs::field::Field;
+
+let mut field = Field::new();
+```
+
+#### render
+
+```rust
+pub fn render(&mut self)
+```
+
+Renders the complete VEX Over Under field with all game elements and markings.
+
+**Features:**
+- Automatically scales to 90% of screen size
+- Centers field on screen
+- Draws 6x6 checkerboard pattern (2ft tiles)
+- Renders all game-specific elements:
+  - Low hang bars (red and blue)
+  - Center barrier with match loads
+  - Load zones in corners
+  - Goals with nets
+  - Field perimeter
+
+**Example:**
+
+```rust
+use mars_rs::field::Field;
+use macroquad::prelude::*;
+
+let mut field = Field::new();
+
+// In game loop
+loop {
+    clear_background(WHITE);
+    field.render();
+    next_frame().await;
+}
+```
+
+## Triball Struct
+
+```rust
+pub struct Triball {
+    pub size: f32,
+    pub pos: (f32, f32),
+    pub rotation: f32,
+    pub vel: Vec3,
+    pub accel: Vec3
+}
+```
+
+Represents a triball game element with physics properties.
+
+<ParamField path="size" type="f32">
+  Triball radius in pixels
+</ParamField>
+
+<ParamField path="pos" type="(f32, f32)">
+  Center position of the triball
+</ParamField>
+
+<ParamField path="rotation" type="f32">
+  Current rotation angle in radians
+</ParamField>
+
+<ParamField path="vel" type="Vec3">
+  Velocity vector (x, y, angular)
+</ParamField>
+
+<ParamField path="accel" type="Vec3">
+  Acceleration vector (x, y, angular)
+</ParamField>
+
+### Methods
+
+#### render
+
+```rust
+pub fn render(&self)
+```
+
+Renders a triball as three circular arcs forming a triangular shape.
+
+**Visual Design:**
+- Three 120-degree arcs arranged in triangle
+- Green color to match VEX game elements
+- Rotates with the triball's orientation
+
+**Example:**
+
+```rust
+use mars_rs::field::Triball;
+use macroquad::prelude::*;
+
+let triball = Triball {
+    size: 30.0,
+    pos: (400.0, 300.0),
+    rotation: 0.0,
+    vel: Vec3::ZERO,
+    accel: Vec3::ZERO
+};
+
+triball.render();
+```
+
+#### physics
+
+```rust
+pub fn physics(&mut self)
+```
+
+Updates triball physics (currently disabled/commented out).
+
+**Planned Features:**
+- Velocity integration
+- Position updates
+- Rotation updates
+- Friction application
+
+<Note>
+  Physics simulation is currently disabled. Uncomment the code in this function to enable basic physics with friction.
+</Note>
+
+## Field Elements
+
+### Color Scheme
+
+```rust
+// Tile colors
+let tile1 = hex!(0xDCABDF);  // Light purple
+let tile2 = hex!(0xC792DF);  // Darker purple
+
+// Alliance colors
+let red = hex!(0xFF5964);
+let blue = hex!(0x35A7FF);
+let ared = hex!(0x90323D);   // Dark red
+let ablue = hex!(0x4F7CAC);  // Dark blue
+
+// Neutral elements
+let grey = hex!(0x38618C);
+let yellow = hex!(0xFFE74C);
+let perimeter = hex!(0xD0C4DF);
+```
+
+### Element Positions
+
+All elements scale proportionally with field size:
+
+```rust
+let tileSize = self.size / 6.0;  // 2ft tiles
+```
+
+**Key Locations:**
+- Center barrier: Middle of field (3 tiles from each side)
+- Low hang bars: Top and bottom center (1 tile from edge)
+- Load zones: Four corners (1 tile diagonals)
+- Goals: 2 tiles from top/bottom, 1 tile from sides
+
+## Complete Example
+
+```rust
+use mars_rs::{
+    field::{Field, Triball},
+    robot::Robot
+};
+use macroquad::prelude::*;
+
+#[macroquad::main("Field Demo")]
+async fn main() {
+    let mut field = Field::new();
+    
+    let mut robot = Robot {
+        position: (screen_width() / 2.0, screen_height() / 2.0),
+        heading: 0.0,
+        robotSize: 30.0
+    };
+    
+    // Add some triballs
+    let mut triballs = vec![
+        Triball {
+            size: 20.0,
+            pos: (300.0, 300.0),
+            rotation: 0.0,
+            vel: Vec3::ZERO,
+            accel: Vec3::ZERO
+        },
+        Triball {
+            size: 20.0,
+            pos: (500.0, 400.0),
+            rotation: 1.57,
+            vel: Vec3::ZERO,
+            accel: Vec3::ZERO
+        }
+    ];
+    
+    loop {
+        clear_background(WHITE);
+        
+        // Render in layers
+        field.render();
+        
+        for triball in &triballs {
+            triball.render();
+        }
+        
+        robot.render();
+        
+        next_frame().await;
+    }
+}
+```
+
+## Field Specifications
+
+### Dimensions
+
+- **Total size:** 12ft x 12ft (3.66m x 3.66m)
+- **Tile size:** 2ft x 2ft (6 tiles per side)
+- **Screen scaling:** 90% of smallest screen dimension
+- **Centering:** Automatically centered on screen
+
+### Game Elements
+
+<CardGroup cols={2}>
+  <Card title="Low Hang Bars" icon="minus">
+    Horizontal bars at top (blue) and bottom (red) for elevation points
+  </Card>
+  <Card title="Center Barrier" icon="grip-lines-vertical">
+    Vertical barrier dividing field with match load indicators
+  </Card>
+  <Card title="Load Zones" icon="square">
+    Diagonal corner areas for loading triballs (marked with alliances)
+  </Card>
+  <Card title="Goals" icon="bullseye">
+    Protected goal zones with nets on left (blue) and right (red)
+  </Card>
+</CardGroup>
+
+## Coordinate System
+
+```rust
+// Top-left reference point
+let x = self.pos.0;
+let y = self.pos.1;
+
+// Derived positions
+let xmax = x + size;              // Right edge
+let xhalf = x + size / 2.0;       // Center X
+let ylow = y + size;              // Bottom edge
+```
+
+**Important Coordinates:**
+- `(x, y)` - Top-left corner
+- `(xhalf, y)` - Top center
+- `(xmax, y)` - Top-right corner
+- `(x, ylow)` - Bottom-left corner
+- `(xhalf, ylow)` - Bottom center
+- `(xmax, ylow)` - Bottom-right corner
+
+## Responsive Sizing
+
+ The field automatically resizes to fit the window:
+
+```rust
+let size = ft() * 12.0 * 0.9;  // 90% of available space
+self.size = size;
+self.pos = (
+    screen_width() / 2.0 - size / 2.0,
+    screen_height() / 2.0 - size / 2.0
+);
+```
+
+This ensures the field:
+- Maintains aspect ratio
+- Stays centered
+- Scales with window resizing
+- Leaves 10% margin for UI elements
+
+## Custom Field Elements
+
+To add custom field elements:
+
+```rust
+use mars_rs::field::Field;
+use macroquad::prelude::*;
+
+let mut field = Field::new();
+
+// After rendering field
+field.render();
+
+// Add custom elements
+let center_x = screen_width() / 2.0;
+let center_y = screen_height() / 2.0;
+
+draw_circle(center_x, center_y, 10.0, YELLOW);
+draw_text(
+    "Custom Element",
+    center_x - 50.0,
+    center_y - 20.0,
+    20.0,
+    BLACK
+);
+```
+
+## Net Rendering Details
+
+The goals include detailed net rendering:
+
+```rust
+// Horizontal net lines (10 lines)
+for i in 1..10 {
+    let inc = tileSize / 5.0 * i as f32;
+    draw_line(x, y + 2.0 * tileSize + inc, 
+              x + tileSize, y + 2.0 * tileSize + inc, 
+              thin/3.0, blue);
+}
+
+// Vertical net lines (4 lines)
+for i in 1..5 {
+    let inc = tileSize / 5.0 * i as f32;
+    draw_line(x + inc, y + 2.0 * tileSize, 
+              x + inc, ylow - 2.0 * tileSize, 
+              thin/3.0, blue);
+}
+```
+
+This creates a realistic mesh pattern for the goal nets.
+
+## Performance Notes
+
+<Note>
+  The field rendering involves many draw calls. For better performance in complex scenes, consider:
+  - Rendering field to a texture once
+  - Only re-rendering when window size changes
+  - Using batch rendering for repeated elements
+</Note>
+
+## See Also
+
+- [Robot](/api/robot) - Robot rendering and control
+- [Util](/api/util) - Drawing utilities (draw_arc, rotate macro)
+- [Paths](/api/paths) - Path overlay on field

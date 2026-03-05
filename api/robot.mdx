@@ -1,0 +1,188 @@
+---
+title: 'Robot'
+description: 'Core robot structure and rendering system'
+icon: 'robot'
+---
+
+## Overview
+
+The `Robot` struct represents the physical robot in the simulation, managing its position, heading, and rendering. It provides methods for updating the robot's state and visualizing it on the field.
+
+## Robot Struct
+
+```rust
+pub struct Robot {
+    pub position: (f32, f32),
+    pub heading: f32,
+    pub robotSize: f32
+}
+```
+
+The main robot structure that tracks the robot's state in the simulation.
+
+<ParamField path="position" type="(f32, f32)">
+  The robot's position on the field in pixels as (x, y) coordinates
+</ParamField>
+
+<ParamField path="heading" type="f32">
+  The robot's heading angle in radians. 0 radians points to the right, increasing counterclockwise
+</ParamField>
+
+<ParamField path="robotSize" type="f32">
+  The robot's size in pixels, representing half the width of the robot. Automatically calculated based on field size
+</ParamField>
+
+## Methods
+
+### render
+
+```rust
+pub fn render(&mut self)
+```
+
+Renders the robot on the screen as a square with a colored front edge to indicate direction.
+
+**Behavior:**
+- Automatically calculates robot size based on field dimensions (15 inches scaled to screen)
+- Draws robot as two triangles forming a square
+- Highlights the front edge in a brighter color to show orientation
+- Uses dark red (#6F2232) for body and bright red (#950740) for front edge
+
+**Example:**
+
+```rust
+use mars_rs::robot::Robot;
+
+let mut robot = Robot {
+    position: (400.0, 300.0),
+    heading: 0.0,
+    robotSize: 30.0
+};
+
+// In your game loop
+robot.render();
+```
+
+<Note>
+  The robot size is recalculated on every render call to handle window resizing. The size represents a 15-inch robot scaled to the current field size.
+</Note>
+
+### step
+
+```rust
+pub fn step(&mut self, d: (f32, f32))
+```
+
+Updates the robot's position and heading based on differential drive velocities.
+
+<ParamField path="d" type="(f32, f32)" required>
+  The left and right wheel velocities as (left, right). Positive values move forward
+</ParamField>
+
+**Behavior:**
+- Implements differential drive kinematics
+- Calculates rotation based on velocity difference between wheels
+- Updates position using either straight-line motion (when both wheels equal) or arc motion
+- Uses proper kinematic equations for accurate robot movement
+
+**Return Type:** None (mutates the robot in place)
+
+**Example:**
+
+```rust
+use mars_rs::robot::Robot;
+
+let mut robot = Robot {
+    position: (400.0, 300.0),
+    heading: 0.0,
+    robotSize: 30.0
+};
+
+// Move forward
+robot.step((5.0, 5.0));
+
+// Turn right while moving forward
+robot.step((5.0, 3.0));
+
+// Turn in place
+robot.step((3.0, -3.0));
+```
+
+<Warning>
+  The step function assumes a time delta of 10ms. If you're calling it at different rates, you'll need to scale the velocities accordingly.
+</Warning>
+
+## Usage Patterns
+
+### Basic Robot Control
+
+```rust
+use mars_rs::robot::Robot;
+use std::sync::{Arc, Mutex};
+
+// Create a thread-safe robot
+let robot = Arc::new(Mutex::new(Robot {
+    position: (400.0, 300.0),
+    heading: 0.0,
+    robotSize: 30.0
+}));
+
+// In your render loop
+{
+    let mut r = robot.lock().unwrap();
+    r.render();
+}
+
+// In your control loop
+{
+    let mut r = robot.lock().unwrap();
+    r.step((velocity_left, velocity_right));
+}
+```
+
+### With Movement Functions
+
+```rust
+use mars_rs::{robot::Robot, movement, util};
+use std::sync::{Arc, Mutex};
+
+let robot = Arc::new(Mutex::new(Robot {
+    position: (400.0, 300.0),
+    heading: 0.0,
+    robotSize: 30.0
+}));
+
+let pid_constants = util::PidConstants {
+    p: 0.05,
+    i: 0.0,
+    d: 0.0,
+    tolerance: 5.0,
+    integralThreshold: 50.0,
+    maxIntegral: 100.0
+};
+
+// Move to a target point
+movement::pidMTP(
+    &robot,
+    (600.0, 400.0),  // target position
+    90.0,            // rotation cut
+    3000,            // timeout in ms
+    pid_constants,   // linear controller
+    pid_constants,   // rotation controller
+    0.5              // minimum velocity
+);
+```
+
+## Coordinate System
+
+- Origin (0, 0) is at the top-left corner of the screen
+- X-axis increases to the right
+- Y-axis increases downward
+- Heading of 0 radians points to the right (along positive X-axis)
+- Positive heading rotates counterclockwise
+
+## See Also
+
+- [Movement](/api/movement) - Functions for autonomous robot movement
+- [Driver](/api/driver) - Keyboard control for manual driving
+- [Util](/api/util) - Utility functions for calculations

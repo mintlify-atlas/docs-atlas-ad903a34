@@ -1,0 +1,359 @@
+---
+title: 'Pure Pursuit'
+description: 'Understanding the Pure Pursuit path following algorithm'
+icon: 'crosshairs'
+---
+
+## Introduction
+
+Pure Pursuit is a path following algorithm that calculates a target point along the path at a fixed "lookahead" distance from the robot. The robot then steers toward this point, creating smooth curved motion along the path.
+
+<Note>
+  Pure Pursuit is particularly effective for following paths with curves because it naturally generates smooth arcs rather than sharp corrections.
+</Note>
+
+## Algorithm Overview
+
+The `moveToPurePursuit` function implements Pure Pursuit path following:
+
+```rust
+pub fn moveToPurePursuit(
+    robot: &Arc<Mutex<robot::Robot>>, 
+    path: Vec<(f32,f32)>,          // Array of waypoints
+    lookAhead: f32,                 // Lookahead circle radius
+    lineLookAhead: usize,           // How many path segments to search
+    finalTimeout: u16               // Timeout when near final point
+)
+```
+
+### Key Concepts
+
+1. **Lookahead Circle:** A circle centered on the robot with radius `lookAhead`
+2. **Path Segments:** Lines connecting consecutive waypoints
+3. **Intersection Point:** Where the lookahead circle intersects the path
+4. **Target Point:** The intersection point closest to the end of the path
+
+## Core Algorithm: targetPoint
+
+The heart of Pure Pursuit is finding where the lookahead circle intersects the path.
+
+```rust
+fn targetPoint(
+    path: &Vec<(f32,f32)>, 
+    position: (f32, f32),      // Robot position
+    lookAhead: f32,             // Circle radius
+    lineLookAhead: usize,       // Segments to search ahead
+    lineIndex: usize            // Current segment
+) -> TargetPoint
+```
+
+### Line-Circle Intersection
+
+The algorithm uses the mathematical formula for line-circle intersection. For each path segment:
+
+<Steps>
+  <Step title="Transform coordinates">
+    Translate the line segment so the robot (circle center) is at the origin:
+    ```rust
+    let ox1 = x1 - position.0;
+    let oy1 = y1 - position.1;
+    let ox2 = x2 - position.0;
+    let oy2 = y2 - position.1;
+    ```
+  </Step>
+  
+  <Step title="Calculate discriminant">
+    Determine if intersection exists:
+    ```rust
+    let dx = ox2 - ox1;
+    let dy = oy2 - oy1;
+    let dr = dx.hypot(dy);
+    let D = ox1*oy2 - ox2 * oy1;
+    let discriminant = lookAhead.powi(2) * dr.powi(2) - D.powi(2);
+    ```
+  </Step>
+  
+  <Step title="Find intersection points">
+    If discriminant ≥ 0, calculate both intersection points:
+    ```rust
+    let sDiscriminant = discriminant.sqrt();
+    let sx1 = (dxdy + sdyxdxxsd) / dr2;
+    let sy1 = (-dxdx + adyxsd) / dr2;
+    let sx2 = (dxdy - sdyxdxxsd) / dr2;
+    let sy2 = (-dxdx - adyxsd) / dr2;
+    ```
+  </Step>
+  
+  <Step title="Validate and select">
+    Check if points lie on the line segment and choose the best one
+  </Step>
+</Steps>
+
+### Mathematical Background
+
+The intersection formula comes from the parametric line equation and circle equation:
+
+**Circle:** $x^2 + y^2 = r^2$
+
+**Parametric Line:** 
+$$
+\begin{align*}
+x &= x_1 + t(x_2 - x_1) \\
+y &= y_1 + t(y_2 - y_1)
+\end{align*}
+$$
+
+**Discriminant:**
+$$
+\Delta = r^2 \cdot dr^2 - D^2
+$$
+
+Where:
+- $r$ = lookahead radius
+- $dr = \sqrt{dx^2 + dy^2}$ = line segment length
+- $D = x_1 y_2 - x_2 y_1$ = cross product
+
+<Accordion title="Why use discriminant?">
+  The discriminant tells us about intersections:
+  - $\Delta < 0$: No intersection (circle misses line)
+  - $\Delta = 0$: One intersection (circle tangent to line)
+  - $\Delta > 0$: Two intersections (circle crosses line)
+</Accordion>
+
+## Target Point Selection
+
+When multiple intersections exist, Pure Pursuit must choose the best target point:
+
+```rust
+let s1Dist = util::dist(s1, furthestPoint);
+let s2Dist = util::dist(s2, furthestPoint);
+
+if s1Valid && s1Dist < closestDist {
+    targetPoint = TargetPoint::Other(s1);
+    closestDist = s1Dist;
+}
+
+if s2Valid && s2Dist < closestDist {
+    targetPoint = TargetPoint::Other(s2);
+    closestDist = s2Dist;
+}
+```
+
+### Selection Strategy
+
+1. **Validity Check:** Point must lie on the line segment (within min/max bounds)
+   ```rust
+   let s1Valid = s1.0 >= minX && s1.0 <= maxX && 
+                 s1.1 >= minY && s1.1 <= maxY;
+   ```
+
+2. **Closest to Goal:** Choose the intersection point closest to the path's end
+
+3. **Last Line Detection:** Special handling when reaching the final segment
+   ```rust
+   if (i == (lastLine - 1)) && (lastLine - 1 != path.len()) {
+       return TargetPoint::Last(s1);  // Advance to next segment
+   }
+   ```
+
+## TargetPoint Enum
+
+The algorithm uses an enum to track when to advance to the next path segment:
+
+```rust
+enum TargetPoint {
+    Last((f32, f32)),   // Intersection on last searched segment
+    Other((f32, f32))   // Intersection on earlier segment
+}
+```
+
+When a `Last` point is found, the `lineIndex` increments:
+
+```rust
+match targ {
+    TargetPoint::Last(point) => {
+        lineIndex += 1;  // Move to next segment
+        target = point;
+    }
+    TargetPoint::Other(point) => {
+        target = point;  // Stay on current segment
+    }
+}
+```
+
+## Line Lookahead
+
+The `lineLookAhead` parameter controls how many segments ahead to search:
+
+```rust
+let lastLine = (lineIndex + lineLookAhead).min(path.len() - 1);
+for i in lineIndex..lastLine {
+    // Search for intersections
+}
+```
+
+<Tip>
+  **Larger lineLookAhead:**
+  - Smoother paths through corners
+  - Better anticipation of upcoming turns
+  - More computation per update
+  
+  **Smaller lineLookAhead:**
+  - More responsive to path changes
+  - Less computation
+  - May cut corners more aggressively
+</Tip>
+
+## Integration with PID
+
+Pure Pursuit finds the target point, then uses PID control to drive toward it:
+
+```rust
+let mut lCont = util::Pid::new(util::PidConstants {
+    p: 0.05,
+    i: 0.0,
+    d: 0.0,
+    tolerance: 0.0,
+    integralThreshold: 0.0,
+    maxIntegral: 0.0
+});
+
+let mut rCont = util::Pid::new(util::PidConstants {
+    p: 0.015,
+    i: 0.0,
+    d: 0.0,
+    tolerance: 0.0,
+    integralThreshold: 0.0,
+    maxIntegral: 0.0
+});
+
+robot.step(pidMTPVel(pos, heading, target, 90.0, 
+                     &mut lCont, &mut rCont, 0.0));
+```
+
+<Note>
+  The linear controller (lCont) has higher P gain (0.05) than the angular controller (0.015), making forward motion more aggressive than turning.
+</Note>
+
+## Final Point Handling
+
+When approaching the path end:
+
+```rust
+if lineIndex == path.len() - 2 {
+    target = last;  // Target the final waypoint directly
+}
+```
+
+The robot switches from Pure Pursuit to direct targeting to ensure it reaches the exact endpoint.
+
+## Lookahead Distance Tuning
+
+### Effects of Lookahead Radius
+
+<AccordionGroup>
+  <Accordion title="Small lookahead (e.g., 10-30)">
+    **Pros:**
+    - Follows path very closely
+    - Minimal cutting of corners
+    - Good for paths requiring precision
+    
+    **Cons:**
+    - Choppy motion on curves
+    - Oscillation around path
+    - Slower overall speed
+  </Accordion>
+  
+  <Accordion title="Medium lookahead (e.g., 30-60)">
+    **Pros:**
+    - Balanced smoothness and accuracy
+    - Good for most applications
+    - Stable performance
+    
+    **Cons:**
+    - May cut some corners
+    - Requires tuning for specific paths
+  </Accordion>
+  
+  <Accordion title="Large lookahead (e.g., 60+)">
+    **Pros:**
+    - Very smooth motion
+    - Fast traversal
+    - Excellent for wide, sweeping curves
+    
+    **Cons:**
+    - Significant corner cutting
+    - May miss fine path details
+    - Can become unstable on tight turns
+  </Accordion>
+</AccordionGroup>
+
+### Adaptive Lookahead
+
+While not implemented in the current Mars-RS code, adaptive lookahead can improve performance:
+
+```rust
+// Pseudocode for adaptive lookahead
+let baseLookahead = 40.0;
+let velocity = robot.getCurrentVelocity();
+let dynamicLookahead = baseLookahead + (velocity * 0.5);
+```
+
+This increases lookahead at higher speeds for smoother motion.
+
+## Algorithm Complexity
+
+For each control loop iteration:
+
+- **Time Complexity:** O(n) where n = `lineLookAhead`
+- **Space Complexity:** O(1) - only stores current best point
+- **Update Frequency:** 100Hz (10ms sleep)
+
+## Comparison with Other Algorithms
+
+| Feature | Pure Pursuit | Boomerang | pidMTP |
+|---------|--------------|-----------|--------|
+| **Path accuracy** | High | Medium | N/A (point-to-point) |
+| **Motion smoothness** | Very High | High | Medium |
+| **Computational cost** | Medium | Low | Low |
+| **Corner cutting** | Some | Moderate | None |
+| **Best for** | Complex paths | Goal poses | Simple movements |
+
+## Practical Example
+
+Creating a Pure Pursuit path follower:
+
+```rust
+let path = vec![
+    (100.0, 100.0),
+    (200.0, 150.0),
+    (300.0, 140.0),
+    (400.0, 200.0),
+];
+
+moveToPurePursuit(
+    &robot,
+    path,
+    40.0,     // Lookahead radius
+    3,        // Search 3 segments ahead
+    5000      // 5 second timeout
+);
+```
+
+<Tip>
+  Start with a lookahead radius approximately equal to the robot's width, then adjust based on path characteristics and desired behavior.
+</Tip>
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="Movement Algorithms" icon="route" href="/concepts/movement-algorithms">
+    Compare Pure Pursuit with other algorithms
+  </Card>
+  <Card title="PID Control" icon="sliders" href="/concepts/pid-control">
+    Tune the PID controllers for Pure Pursuit
+  </Card>
+  <Card title="Robot Physics" icon="gear" href="/concepts/robot-physics">
+    Understand the robot's motion model
+  </Card>
+</CardGroup>

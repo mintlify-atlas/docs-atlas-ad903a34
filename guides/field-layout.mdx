@@ -1,0 +1,296 @@
+---
+title: Field Layout
+description: Understanding the VEX Over Under field layout and coordinate system
+---
+
+## Overview
+
+Mars-RS renders a visual representation of the VEX Robotics Competition Over Under game field. The field display includes game elements, scoring zones, and properly scaled dimensions.
+
+## Field Dimensions
+
+The field is rendered as a 12×12 foot square:
+
+```rust
+let size = ft() * 12.0 * 0.9; // 90% of 12 feet
+self.size = size;
+self.pos = (
+    screen_width() / 2.0 - size / 2.0, 
+    screen_height() / 2.0 - size / 2.0
+);
+```
+
+### Scaling Function
+
+The `ft()` function converts feet to screen pixels:
+
+```rust
+pub fn ft() -> f32 {
+    screen_width().min(screen_height()) / 12.0
+}
+```
+
+This ensures the field scales proportionally to fit the window while maintaining the correct aspect ratio.
+
+## Field Tiles
+
+The field consists of a 6×6 grid of tiles in a checkerboard pattern:
+
+```rust
+let tileSize = self.size / 6.0;
+let colors = [hex!(0xDCABDF), hex!(0xC792DF)];
+
+for i in 0..6 {
+    for j in 0..6 {
+        let index = (i+j) % 2;
+        draw_rectangle(
+            self.pos.0 + i as f32 * tileSize, 
+            self.pos.1 + j as f32 * tileSize, 
+            tileSize, 
+            tileSize, 
+            colors[index]
+        );
+    }
+}
+```
+
+**Tile Colors:**
+- Light purple: `#DCABDF`
+- Dark purple: `#C792DF`
+
+## Game Elements
+
+### Triballs
+
+Triballs are the game pieces in VEX Over Under. They are represented as three-sided objects with curved edges:
+
+```rust
+pub struct Triball {
+    pub size: f32,
+    pub pos: (f32, f32),
+    pub rotation: f32,
+    pub vel: Vec3,
+    pub accel: Vec3
+}
+```
+
+#### Rendering
+
+Triballs are drawn using three arc segments:
+
+```rust
+let v1 = util::rotate![0.0, self.size * R303, self.rotation, self.pos]; 
+let v2 = util::rotate![-self.size / 2.0,-self.size * R306, self.rotation, self.pos];
+let v3 = util::rotate![self.size / 2.0, -self.size * R306, self.rotation, self.pos];
+
+draw_arc(v1, self.size, self.rotation - PI / 3.0, self.rotation - 2.0 * PI/3.0, GREEN);
+draw_arc(v2, self.size, self.rotation, self.rotation + PI / 3.0, GREEN);
+draw_arc(v3, self.size, self.rotation + 2.0 * PI/3.0, self.rotation + 3.0 * PI/3.0, GREEN);
+```
+
+Where:
+- `R303 = 0.57735026919` (√3/3)
+- `R306 = 0.28867513459` (√3/6)
+
+<Tip>
+Triballs are rendered in **green** color and rotate based on their `rotation` property.
+</Tip>
+
+## Scoring Zones
+
+### Goals
+
+The field features goals on both sides with nets:
+
+#### Blue Goal (Left Side)
+
+```rust
+// Goal perimeter
+draw_circle(x + tileSize, y + 2.0 * tileSize, 15.0, blue);
+draw_circle(x + tileSize, ylow - 2.0 * tileSize, 15.0, blue);
+draw_line(x + tileSize, y + 2.0 * tileSize, x + tileSize, ylow - 2.0 * tileSize, thin, ablue);
+
+// Net pattern
+for i in 1..10 {
+    let inc = tileSize / 5.0 * i as f32;
+    draw_line(x, y + 2.0 * tileSize + inc, x + tileSize, y+2.0 * tileSize + inc, thin/3.0, blue);
+}
+for i in 1..5 {
+    let inc = tileSize / 5.0 * i as f32;
+    draw_line(x + inc, y + 2.0 * tileSize, x + inc, ylow - 2.0 * tileSize, thin/3.0, blue);
+}
+```
+
+**Blue Goal Colors:**
+- Primary: `#35A7FF`
+- Accent: `#4F7CAC`
+
+#### Red Goal (Right Side)
+
+```rust
+// Goal perimeter
+draw_circle(xmax - tileSize, y + 2.0 * tileSize, 15.0, red);
+draw_circle(xmax - tileSize, ylow - 2.0 * tileSize, 15.0, red);
+draw_line(xmax - tileSize, y + 2.0 * tileSize, xmax - tileSize, ylow - 2.0 * tileSize, thin, ared);
+
+// Net pattern (similar to blue side)
+```
+
+**Red Goal Colors:**
+- Primary: `#FF5964`
+- Accent: `#90323D`
+
+### Load Zones
+
+Load zones are marked in the corners of the field:
+
+```rust
+// Red load zones
+draw_line(x+tileSize - 6.0, y + 6.0, x + 6.0, y+tileSize - 6.0, thick, red);
+draw_line(x+tileSize - 6.0, ylow - 6.0, x + 6.0, ylow-tileSize + 6.0, thick, red);
+
+// Blue load zones
+draw_line(xmax - tileSize + 6.0, y + 6.0, xmax - 6.0, y+tileSize - 6.0, thick, blue);
+draw_line(xmax - tileSize + 6.0, ylow - 6.0, xmax - 6.0, ylow-tileSize + 6.0, thick, blue);
+```
+
+Load zones are diagonal lines in the corner tiles.
+
+## Field Barrier
+
+The center barrier divides the field:
+
+```rust
+let grey = hex!(0x38618C);
+
+// Vertical barrier
+draw_line(xhalf, y + tileSize, xhalf, ylow - tileSize, thick, grey);
+
+// Horizontal barriers
+draw_line(xhalf - tileSize, y + tileSize, xhalf+tileSize, y+tileSize, thick, grey);
+draw_circle(xhalf, y + tileSize, 7.0, hex!(0xFFE74C)); // Yellow circle
+
+draw_line(xhalf - tileSize, ylow - tileSize, xhalf+tileSize, ylow-tileSize, thick, grey);
+draw_circle(xhalf, ylow - tileSize, 7.0, hex!(0xFFE74C)); // Yellow circle
+```
+
+The barrier includes:
+- Grey lines (`#38618C`)
+- Yellow circles at intersections (`#FFE74C`)
+
+## Elevation Bars
+
+Elevation bars allow robots to score points by hanging:
+
+```rust
+// Blue alliance bar (top)
+draw_line(xhalf, y, xhalf, y + tileSize, thick, blue);
+
+// Red alliance bar (bottom)
+draw_line(xhalf, ylow, xhalf, ylow - tileSize, thick, red);
+```
+
+Bars extend one tile from the field edge at the center line.
+
+## Field Border
+
+The entire field is outlined with a border:
+
+```rust
+draw_rectangle_lines(self.pos.0, self.pos.1, self.size, self.size, 6.0, hex!(0xD0C4DF));
+```
+
+**Border Color:** `#D0C4DF` (light purple)
+**Border Width:** 6 pixels
+
+## Coordinate System
+
+The field uses a coordinate system where:
+- **(0, 0)** is at `self.pos` (top-left corner of field)
+- **X-axis** increases from left to right
+- **Y-axis** increases from top to bottom
+- **One tile** = `size / 6.0` pixels
+
+### Converting Measurements
+
+```rust
+// 1 foot in screen units
+let one_foot = ft();
+
+// Robot size (15 inches = 1.25 feet)
+self.robotSize = ft() / 12.0 * 15.0 / 2.0;
+```
+
+## Line Thickness
+
+Different elements use different line thicknesses:
+
+```rust
+let thick = tileSize / 8.0;   // Thick lines (barriers, load zones)
+let thin = tileSize / 18.0;   // Thin lines (goal perimeter)
+let net = thin / 3.0;         // Net lines
+```
+
+## Color Palette
+
+The field uses a consistent color scheme:
+
+| Element | Hex Code | RGB |
+|---------|----------|-----|
+| Tile Light | `#DCABDF` | (220, 171, 223) |
+| Tile Dark | `#C792DF` | (199, 146, 223) |
+| Border | `#D0C4DF` | (208, 196, 223) |
+| Red Alliance | `#FF5964` | (255, 89, 100) |
+| Red Accent | `#90323D` | (144, 50, 61) |
+| Blue Alliance | `#35A7FF` | (53, 167, 255) |
+| Blue Accent | `#4F7CAC` | (79, 124, 172) |
+| Barrier | `#38618C` | (56, 97, 140) |
+| Yellow Accent | `#FFE74C` | (255, 231, 76) |
+| Triball | `#00FF00` | (0, 255, 0) |
+
+## Physics (Experimental)
+
+Triball physics is defined but currently disabled:
+
+```rust
+pub fn physics(&mut self) {
+    // Commented out - not currently implemented
+    // self.vel += self.accel;
+    // self.pos.0 += self.vel.x;
+    // self.pos.1 += self.vel.y;
+    // self.rotation += self.vel.z;
+}
+```
+
+<Info>
+Physics simulation for triballs is planned but not yet active.
+</Info>
+
+## Field Initialization
+
+Create a new field with:
+
+```rust
+pub fn new() -> Field {
+    let size = screen_width().min(screen_height()) * 0.8;
+    Field { 
+        size, 
+        pos: (
+            screen_width() / 2.0 - size / 2.0, 
+            screen_height() / 2.0 - size / 2.0
+        ), 
+        triballs: Vec::new()
+    }
+}
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Path Creation" icon="pen" href="/guides/path-creation">
+    Design paths on the field layout
+  </Card>
+  <Card title="Autonomous Mode" icon="robot" href="/guides/autonomous-mode">
+    Execute movements on the field
+  </Card>
+</CardGroup>

@@ -1,0 +1,236 @@
+---
+title: 'Driver'
+description: 'Manual keyboard control for robot driving'
+icon: 'keyboard'
+---
+
+## Overview
+
+The driver module provides keyboard-based manual control for the robot, implementing arcade-style driving with WASD keys. It handles velocity management, acceleration, and converts user input into differential drive commands.
+
+## Functions
+
+### drive
+
+```rust
+pub fn drive(vel: &mut(f32, f32), robot: &mut super::robot::Robot)
+```
+
+Handles keyboard input and updates robot velocity with smooth acceleration and deceleration.
+
+<ParamField path="vel" type="&mut(f32, f32)" required>
+  Mutable reference to velocity state as (linear_velocity, angular_velocity). This state persists between calls to provide smooth acceleration
+</ParamField>
+
+<ParamField path="robot" type="&mut Robot" required>
+  Mutable reference to the robot to control
+</ParamField>
+
+**Behavior:**
+- Reads WASD keyboard input
+- Applies acceleration and friction
+- Enforces maximum velocities
+- Converts to differential drive wheel velocities
+- Updates robot position using `robot.step()`
+
+**Example:**
+
+```rust
+use mars_rs::{robot::Robot, driver};
+
+let mut robot = Robot {
+    position: (400.0, 300.0),
+    heading: 0.0,
+    robotSize: 30.0
+};
+
+let mut velocity = (0.0, 0.0);
+
+// In your game loop
+loop {
+    driver::drive(&mut velocity, &mut robot);
+    robot.render();
+}
+```
+
+## Keyboard Controls
+
+<CardGroup cols={2}>
+  <Card title="W Key" icon="arrow-up">
+    Increases forward velocity by 0.2 units per frame
+  </Card>
+  <Card title="S Key" icon="arrow-down">
+    Increases backward velocity by 0.2 units per frame
+  </Card>
+  <Card title="A Key" icon="arrow-left">
+    Increases counterclockwise angular velocity by 0.0076 radians per frame
+  </Card>
+  <Card title="D Key" icon="arrow-right">
+    Increases clockwise angular velocity by 0.0076 radians per frame
+  </Card>
+</CardGroup>
+
+## Velocity Management
+
+### Maximum Velocities
+
+```rust
+const MAX_VEL: f32 = 4.0;      // Maximum linear velocity
+const MAX_AVEL: f32 = 0.07;    // Maximum angular velocity
+```
+
+Velocities are clamped to these maximums to prevent unrealistic movement speeds.
+
+### Friction
+
+When no keys are pressed, velocities decay automatically:
+- **Linear friction:** 0.07 units per frame
+- **Angular friction:** 0.005 radians per frame
+
+This creates realistic deceleration when the user releases controls.
+
+### Differential Drive Conversion
+
+The function converts arcade-style controls (forward/backward + rotation) into differential drive wheel velocities:
+
+```rust
+let vr = (2.0 * vel.0 - track * vel.1) / 2.0;
+let vl = vr + (track * vel.1);
+robot.step((vl, vr));
+```
+
+Where:
+- `vel.0` is linear velocity
+- `vel.1` is angular velocity  
+- `track` is the robot's wheelbase (robotSize)
+- `vl` and `vr` are left and right wheel velocities
+
+## Complete Example
+
+```rust
+use mars_rs::{robot::Robot, driver, field::Field};
+use macroquad::prelude::*;
+
+#[macroquad::main("Robot Driver")]
+async fn main() {
+    let mut robot = Robot {
+        position: (screen_width() / 2.0, screen_height() / 2.0),
+        heading: 0.0,
+        robotSize: 30.0
+    };
+    
+    let mut field = Field::new();
+    let mut velocity = (0.0, 0.0);
+    
+    loop {
+        clear_background(WHITE);
+        
+        // Render field and robot
+        field.render();
+        robot.render();
+        
+        // Handle driver input
+        driver::drive(&mut velocity, &mut robot);
+        
+        // Display velocity info
+        draw_text(
+            &format!("Linear: {:.2}, Angular: {:.2}", velocity.0, velocity.1),
+            10.0,
+            30.0,
+            20.0,
+            BLACK
+        );
+        
+        next_frame().await;
+    }
+}
+```
+
+## Advanced Usage
+
+### Custom Acceleration
+
+You can modify the acceleration values by adjusting the constants in your fork:
+
+```rust
+// Faster acceleration
+if is_key_down(KeyCode::W) { 
+    vel.0 += 0.4;  // Default is 0.2
+}
+
+// Faster turning
+if is_key_down(KeyCode::A) { 
+    vel.1 += 0.015;  // Default is 0.0076
+}
+```
+
+### Custom Friction
+
+```rust
+// Adjust linear friction
+vel.0 = if absv > 0.07 {
+    vel.0 - sgnv * 0.14  // Doubled friction
+} else {
+    0.0
+};
+
+// Adjust angular friction
+vel.1 = if absv1 > 0.005 {
+    vel.1 - sgnv1 * 0.01  // Doubled friction
+} else {
+    0.0
+};
+```
+
+### Custom Max Velocities
+
+```rust
+const MAX_VEL: f32 = 6.0;      // Faster robot
+const MAX_AVEL: f32 = 0.1;     // Faster turning
+```
+
+## Tank Drive Alternative
+
+The module includes commented-out code for tank drive (dual-stick) control. To use tank drive instead:
+
+1. Uncomment the first `drive` function (lines 5-39)
+2. Comment out the current `drive` function
+3. Adjust key bindings as needed
+
+In tank drive mode:
+- W/S control left wheels
+- A/D control right wheels
+- Each side can be controlled independently
+
+## Physics Notes
+
+<Note>
+  The driver uses a simplified physics model with constant friction. Velocities stop immediately when they drop below the friction threshold, preventing infinite deceleration.
+</Note>
+
+<Warning>
+  The function calls `robot.step()` which assumes a 10ms time step. If your game loop runs at a different rate, velocities will scale differently. Consider adjusting acceleration values to match your frame rate.
+</Warning>
+
+## Troubleshooting
+
+### Robot moves too fast/slow
+
+Adjust `MAX_VEL` and acceleration values (0.2 for W/S keys).
+
+### Robot turns too fast/slow
+
+Adjust `MAX_AVEL` and angular acceleration (0.0076 for A/D keys).
+
+### Robot doesn't stop smoothly
+
+Increase friction values (0.07 for linear, 0.005 for angular).
+
+### Controls feel sluggish
+
+Increase acceleration values in the key press checks.
+
+## See Also
+
+- [Robot](/api/robot) - Robot structure and step function
+- [Movement](/api/movement) - Autonomous movement functions

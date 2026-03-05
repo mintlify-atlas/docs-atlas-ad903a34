@@ -1,80 +1,183 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get up and running with Mars-RS in minutes
 ---
 
-## Get started in three steps
+Mars-RS is a WebAssembly-based robotics simulation tool designed for VEX competitions. This guide will help you run your first simulation quickly.
 
-Get your documentation site running locally and make your first customization.
+## Prerequisites
 
-### Step 1: Set up your local environment
-
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
-
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+Before you begin, make sure you have:
+- Rust toolchain (1.56 or later)
+- A modern web browser with WebAssembly support
+- Basic familiarity with Rust programming
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+If you don't have Rust installed yet, check out the [Installation](/installation) guide first.
 </Note>
+
+## Running the Simulation
+
+<Steps>
+  <Step title="Clone the repository">
+    Get the Mars-RS source code:
+    ```bash
+    git clone https://github.com/your-org/mars-rs.git
+    cd mars-rs
+    ```
+  </Step>
+
+  <Step title="Build the WebAssembly binary">
+    Compile the Rust code to WebAssembly:
+    ```bash
+    cargo build --target wasm32-unknown-unknown --release
+    ```
+    
+    The compiled WASM file will be located at:
+    ```
+    target/wasm32-unknown-unknown/release/mars-rs.wasm
+    ```
+  </Step>
+
+  <Step title="Serve the application">
+    You'll need a local web server to run the simulation. Use any static file server:
+    
+    <CodeGroup>
+    ```bash Python
+    python -m http.server 8000
+    ```
+    
+    ```bash Node.js
+    npx http-server -p 8000
+    ```
+    
+    ```bash Rust
+    cargo install basic-http-server
+    basic-http-server .
+    ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Open in browser">
+    Navigate to `http://localhost:8000` in your web browser. You should see the VEX field rendered with a purple checkerboard pattern.
+  </Step>
+</Steps>
+
+## Understanding the Interface
+
+When you first open Mars-RS, you'll see:
+
+- **VEX Field**: A 12×12 foot field with triballs, goals, and barriers
+- **Robot**: A red robot controlled by keyboard or autonomous code
+- **Mode Indicator**: Shows current mode (Driver/Auton/Create)
+- **Control Buttons**: Switch between different modes
+
+### Control Modes
+
+<Accordion title="Driver Mode">
+  Control the robot manually using keyboard inputs:
+  
+  - **W**: Move forward
+  - **S**: Move backward
+  - **A**: Turn left
+  - **D**: Turn right
+  - **T**: Toggle between Driver and Auton modes
+  
+  The robot uses differential drive with arcade-style controls, where linear and angular velocities are combined to calculate individual wheel speeds.
+</Accordion>
+
+<Accordion title="Auton Mode">
+  Run autonomous routines programmed with path following algorithms:
+  
+  - Pure Pursuit path following
+  - PID-based movement to point
+  - Boomerang controller for smooth curved paths
+  
+  Switch to this mode by pressing **T** or clicking the **Auton** button.
+</Accordion>
+
+<Accordion title="Create Mode">
+  Design custom autonomous paths by drawing waypoints on the field. Click the **Create** button to enter path creation mode.
+</Accordion>
+
+## Your First Autonomous Routine
+
+Here's a simple example of moving the robot to a target position using the built-in movement functions:
+
+```rust
+use std::sync::{Arc, Mutex};
+
+// Create a robot instance
+let robot = Arc::new(Mutex::new(robot::Robot {
+    position: (screen_width()/2.0, screen_height()/3.8),
+    heading: 0.0,
+    robotSize: 0.0
+}));
+
+// Define PID constants for movement
+const lCons: util::PidConstants = util::PidConstants{
+    p: 0.03,
+    i: 0.0,
+    d: 0.0,
+    tolerance: 0.0,
+    integralThreshold: 0.0,
+    maxIntegral: 0.0
+};
+
+const rCons: util::PidConstants = util::PidConstants{
+    p: 0.015,
+    i: 0.0,
+    d: 0.0,
+    tolerance: 0.0,
+    integralThreshold: 0.0,
+    maxIntegral: 0.0
+};
+
+// Move to a target position
+let target = (width / 2.0, height / 2.0);
+movement::pidMTP(&robot, target, 115.0, 800, lCons, rCons, 10.0);
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Learn about dependencies and build configuration
+  </Card>
+  
+  <Card title="Movement Algorithms" icon="route" href="/api/movement">
+    Explore PID control and path following
+  </Card>
+  
+  <Card title="Field Elements" icon="cube" href="/api/field">
+    Understand game objects and physics
+  </Card>
+  
+  <Card title="Robot Configuration" icon="robot" href="/api/robot">
+    Customize your robot's properties
+  </Card>
+</CardGroup>
+
+<Warning>
+The WebAssembly build requires the `wasm32-unknown-unknown` target. Make sure to add it using:
+```bash
+rustup target add wasm32-unknown-unknown
+```
+</Warning>
+
+## Troubleshooting
+
+**Simulation not loading?**
+- Ensure your browser supports WebAssembly
+- Check browser console for JavaScript errors
+- Verify the WASM file path in `index.html` matches your build output
+
+**Robot not moving?**
+- Make sure you're in Driver mode (press T to switch)
+- Check that the keyboard focus is on the canvas element
+- Verify velocity limits aren't capping your movement
+
+**Build errors?**
+- Run `cargo clean` and rebuild
+- Check that all dependencies are compatible versions
+- Ensure Rust toolchain is up to date with `rustup update`

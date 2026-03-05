@@ -1,0 +1,232 @@
+---
+title: "Welcome to Mars-RS"
+mode: "custom"
+---
+
+<div className="relative overflow-hidden bg-gradient-to-br from-[#221D2F] via-[#3a3045] to-[#6F2232] dark:from-[#0f0d15] dark:via-[#221D2F] dark:to-[#3d1822] py-20">
+  <div className="max-w-7xl mx-auto px-6 lg:px-8">
+    <div className="grid lg:grid-cols-12 gap-12 items-center">
+      <div className="lg:col-span-7">
+        <h1 className="text-5xl lg:text-6xl font-bold text-white mb-6">
+          Mars-RS Documentation
+        </h1>
+        <p className="text-xl text-gray-300 dark:text-gray-400 mb-8 max-w-2xl">
+          A powerful WebAssembly-based robotics simulation and path planning tool for VEX competitions. Design autonomous routines, test movement algorithms, and visualize robot behavior in real-time.
+        </p>
+        <div className="flex flex-wrap gap-4">
+          <a 
+            href="/quickstart" 
+            className="inline-flex items-center px-6 py-3 rounded-lg bg-[#6F2232] hover:bg-[#8a2d42] text-white font-semibold transition-colors no-underline"
+          >
+            Get Started
+            <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          </a>
+          <a 
+            href="/api/movement" 
+            className="inline-flex items-center px-6 py-3 rounded-lg border border-white/30 bg-white/10 hover:bg-white/20 text-white font-semibold transition-colors no-underline"
+          >
+            Explore API
+          </a>
+        </div>
+      </div>
+      <div className="lg:col-span-5 hidden lg:block">
+        <div className="relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-[#C792DF] to-[#6F2232] rounded-2xl opacity-20 blur-3xl"></div>
+          <div className="relative bg-[#1a1d27]/80 dark:bg-[#0f1117]/80 backdrop-blur rounded-2xl p-8 border border-white/10">
+            <div className="text-sm text-gray-400 mb-2">Robot Control</div>
+            <pre className="text-sm text-gray-300 overflow-x-auto">
+              <code>{`robot.step((leftVel, rightVel));
+robot.heading += deltaRotation;
+robot.position.0 -= radius * theta.cos();`}</code>
+            </pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+    Quick Start
+  </h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">
+    Get Mars-RS running in minutes with these simple steps.
+  </p>
+  
+  <Steps>
+    <Step title="Clone the repository">
+      Start by cloning the Mars-RS repository to your local machine:
+      
+      ```bash
+      git clone https://github.com/8pxl/mars-rs.git
+      cd mars-rs
+      ```
+    </Step>
+    
+    <Step title="Build the WebAssembly binary">
+      Compile the Rust code to WebAssembly using Cargo:
+      
+      ```bash
+      cargo build --release --target wasm32-unknown-unknown
+      ```
+      
+      <Note>
+        Make sure you have the `wasm32-unknown-unknown` target installed. Run `rustup target add wasm32-unknown-unknown` if needed.
+      </Note>
+    </Step>
+    
+    <Step title="Serve the application">
+      Open `index.html` in a local web server. You can use Python's built-in server:
+      
+      ```bash
+      python -m http.server 8000
+      ```
+      
+      Then navigate to `http://localhost:8000` in your browser.
+    </Step>
+    
+    <Step title="Start simulating">
+      Use the interface to switch between Driver mode, Autonomous mode, and Path Creation mode. Press **T** to toggle between modes.
+      
+      <Accordion title="Expected Interface">
+        You should see:
+        - A purple checkered VEX field
+        - A red robot that you can control
+        - Mode indicators showing "driver", "auton", or "create"
+        - Buttons for switching modes
+      </Accordion>
+    </Step>
+  </Steps>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+    Key Features
+  </h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">
+    Everything you need to plan and test autonomous robot routines.
+  </p>
+  
+  <CardGroup cols={2}>
+    <Card title="Advanced Movement Algorithms" icon="route" href="/concepts/movement-algorithms">
+      PID control, Pure Pursuit path following, and Boomerang motion for smooth, accurate robot movement.
+    </Card>
+    <Card title="Interactive Path Editor" icon="pen-to-square" href="/guides/path-creation">
+      Draw, edit, and save autonomous paths with a visual interface. Test paths instantly in simulation.
+    </Card>
+    <Card title="Real-Time Simulation" icon="play" href="/guides/autonomous-mode">
+      Watch your robot execute paths with accurate physics simulation and field visualization.
+    </Card>
+    <Card title="Driver Control" icon="gamepad" href="/guides/driver-mode">
+      Test manual control with WASD keyboard input. Perfect for hybrid autonomous routines.
+    </Card>
+    <Card title="VEX Field Rendering" icon="grid" href="/guides/field-layout">
+      Accurate VEX Robotics competition field with game elements, goals, and load zones.
+    </Card>
+    <Card title="WebAssembly Performance" icon="bolt" href="/installation">
+      Runs at native speed in any modern browser thanks to Rust and WebAssembly.
+    </Card>
+  </CardGroup>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+    Explore by Topic
+  </h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">
+    Deep dive into the concepts and APIs that power Mars-RS.
+  </p>
+  
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <a href="/concepts/pid-control" className="group block rounded-2xl border dark:border-[#27272a] border-gray-200 hover:border-[#6F2232] dark:hover:border-[#6F2232] overflow-hidden transition-colors no-underline">
+      <div className="p-6 bg-gray-50 dark:bg-[#1a1d27]">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          PID Control
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Learn how proportional-integral-derivative controllers enable precise robot positioning and smooth movement profiles.
+        </p>
+        <div className="flex items-center text-sm text-[#6F2232] group-hover:text-[#8a2d42] font-medium">
+          Read more
+          <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
+    
+    <a href="/concepts/pure-pursuit" className="group block rounded-2xl border dark:border-[#27272a] border-gray-200 hover:border-[#6F2232] dark:hover:border-[#6F2232] overflow-hidden transition-colors no-underline">
+      <div className="p-6 bg-gray-50 dark:bg-[#1a1d27]">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          Pure Pursuit Algorithm
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Discover how Pure Pursuit path following creates smooth trajectories by targeting lookahead points along your path.
+        </p>
+        <div className="flex items-center text-sm text-[#6F2232] group-hover:text-[#8a2d42] font-medium">
+          Read more
+          <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
+    
+    <a href="/api/robot" className="group block rounded-2xl border dark:border-[#27272a] border-gray-200 hover:border-[#6F2232] dark:hover:border-[#6F2232] overflow-hidden transition-colors no-underline">
+      <div className="p-6 bg-gray-50 dark:bg-[#1a1d27]">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          Robot API
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Explore the Robot struct that manages position, heading, rendering, and motion with differential drive kinematics.
+        </p>
+        <div className="flex items-center text-sm text-[#6F2232] group-hover:text-[#8a2d42] font-medium">
+          View API
+          <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
+    
+    <a href="/api/movement" className="group block rounded-2xl border dark:border-[#27272a] border-gray-200 hover:border-[#6F2232] dark:hover:border-[#6F2232] overflow-hidden transition-colors no-underline">
+      <div className="p-6 bg-gray-50 dark:bg-[#1a1d27]">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          Movement Functions
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          Reference for all movement algorithms including pidMTP, boomerang, followPath, and Pure Pursuit implementations.
+        </p>
+        <div className="flex items-center text-sm text-[#6F2232] group-hover:text-[#8a2d42] font-medium">
+          View API
+          <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
+  </div>
+</div>
+
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <div className="rounded-2xl bg-gradient-to-br from-[#221D2F] to-[#6F2232] dark:from-[#0f0d15] dark:to-[#3d1822] p-8 lg:p-12 text-center border border-white/10">
+    <h2 className="text-3xl font-bold text-white mb-4">
+      Ready to simulate?
+    </h2>
+    <p className="text-lg text-gray-300 dark:text-gray-400 mb-8 max-w-2xl mx-auto">
+      Start building and testing autonomous routines for your VEX robot. Mars-RS makes path planning intuitive and accurate.
+    </p>
+    <a 
+      href="/quickstart" 
+      className="inline-flex items-center px-6 py-3 rounded-lg bg-white hover:bg-gray-100 text-[#6F2232] font-semibold transition-colors no-underline"
+    >
+      Get Started Now
+      <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+      </svg>
+    </a>
+  </div>
+</div>

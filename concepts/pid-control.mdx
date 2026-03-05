@@ -1,0 +1,301 @@
+---
+title: 'PID Control'
+description: 'Understanding PID controllers and tuning in Mars-RS'
+icon: 'sliders'
+---
+
+## Introduction
+
+PID (Proportional-Integral-Derivative) control is the foundation of movement algorithms in Mars-RS. The PID controller continuously calculates an error value and applies corrections to minimize that error.
+
+## PID Structure
+
+### PidConstants
+
+The `PidConstants` struct defines the tuning parameters for a PID controller:
+
+```rust
+pub struct PidConstants {
+    pub p: f32,                    // Proportional gain
+    pub i: f32,                    // Integral gain
+    pub d: f32,                    // Derivative gain
+    pub tolerance: f32,            // Error threshold for integral reset
+    pub integralThreshold: f32,    // Error threshold for integral accumulation
+    pub maxIntegral: f32,          // Maximum integral value (anti-windup)
+}
+```
+
+<Note>
+  All fields are public (`pub`) to allow easy configuration and experimentation with different tuning parameters.
+</Note>
+
+### Pid Controller
+
+The `Pid` struct maintains the controller state:
+
+```rust
+pub struct Pid {
+    prevError: f32,      // Previous error for derivative calculation
+    derivative: f32,     // Current derivative term
+    integral: f32,       // Accumulated integral
+    constants: PidConstants
+}
+```
+
+## PID Algorithm
+
+### Initialization
+
+Create a new PID controller with specific constants:
+
+```rust
+let mut controller = util::Pid::new(util::PidConstants {
+    p: 0.05,
+    i: 0.0,
+    d: 0.0,
+    tolerance: 0.0,
+    integralThreshold: 0.0,
+    maxIntegral: 0.0
+});
+```
+
+### Output Calculation
+
+The `out` method computes the control signal:
+
+```rust
+pub fn out(&mut self, error: f32) -> f32 {
+    // Reset integral if within tolerance
+    if error.abs() < self.constants.tolerance {
+        self.integral = 0.0
+    }
+    // Accumulate integral if within threshold
+    else if error.abs() < self.constants.integralThreshold {
+        self.integral += error
+    };
+    
+    // Anti-windup: cap integral
+    if self.integral > self.constants.maxIntegral {
+        self.integral = self.constants.maxIntegral
+    };
+    
+    // Calculate derivative
+    self.derivative = error - self.prevError;
+    self.prevError = error;
+    
+    // PID formula
+    error * self.constants.p  
+        + self.integral * self.constants.i 
+        + self.derivative * self.constants.d
+}
+```
+
+## PID Terms Explained
+
+### Proportional (P)
+
+The proportional term provides an output proportional to the current error:
+
+```
+P_out = Kp × error
+```
+
+<Tip>
+  **Effect:** Higher P values make the system respond more aggressively to errors but can cause oscillation.
+</Tip>
+
+**Characteristics:**
+- Immediate response to current error
+- Cannot eliminate steady-state error alone
+- Dominant term in most Mars-RS controllers
+
+### Integral (I)
+
+The integral term accounts for accumulated past errors:
+
+```
+I_out = Ki × Σ(error)
+```
+
+<Tip>
+  **Effect:** Eliminates steady-state error but can cause overshoot and instability if too high.
+</Tip>
+
+**Special Features in Mars-RS:**
+
+1. **Integral Threshold:** Only accumulates when error is below threshold
+   ```rust
+   else if error.abs() < self.constants.integralThreshold {
+       self.integral += error
+   };
+   ```
+
+2. **Tolerance Reset:** Clears integral when error is very small
+   ```rust
+   if error.abs() < self.constants.tolerance {
+       self.integral = 0.0
+   }
+   ```
+
+3. **Anti-Windup:** Caps integral to prevent excessive accumulation
+   ```rust
+   if self.integral > self.constants.maxIntegral {
+       self.integral = self.constants.maxIntegral
+   };
+   ```
+
+<Note>
+  In many Mars-RS movement algorithms, the integral term is set to 0.0, relying primarily on proportional and derivative control.
+</Note>
+
+### Derivative (D)
+
+The derivative term predicts future error based on the rate of change:
+
+```
+D_out = Kd × (error - previous_error)
+```
+
+<Tip>
+  **Effect:** Dampens oscillations and improves stability, but can amplify noise.
+</Tip>
+
+**Implementation:**
+```rust
+self.derivative = error - self.prevError;
+self.prevError = error;
+```
+
+## Tuning Guidelines
+
+### Manual Tuning Process
+
+<Steps>
+  <Step title="Start with P only">
+    Set I and D to zero. Increase P until the system responds quickly but oscillates slightly.
+  </Step>
+  
+  <Step title="Add D if needed">
+    Increase D to dampen oscillations while maintaining responsiveness.
+  </Step>
+  
+  <Step title="Add I if necessary">
+    Only add I if steady-state error persists. Start very small.
+  </Step>
+  
+  <Step title="Configure integral limits">
+    Set `integralThreshold` to when you want integral to activate, and `maxIntegral` to prevent windup.
+  </Step>
+</Steps>
+
+### Example Configurations
+
+From `moveToPurePursuit` implementation:
+
+<CodeGroup>
+```rust Linear Controller
+let lConstants = util::PidConstants {
+    p: 0.05,              // Moderate proportional gain
+    i: 0.0,               // No integral
+    d: 0.0,               // No derivative
+    tolerance: 0.0,
+    integralThreshold: 0.0,
+    maxIntegral: 0.0
+};
+```
+
+```rust Angular Controller
+let rConstants = util::PidConstants {
+    p: 0.015,             // Lower gain for rotation
+    i: 0.0,               // No integral
+    d: 0.0,               // No derivative
+    tolerance: 0.0,
+    integralThreshold: 0.0,
+    maxIntegral: 0.0
+};
+```
+</CodeGroup>
+
+<Note>
+  Notice the angular (rotation) controller has a lower P value than the linear controller. This is because rotational control is typically more sensitive.
+</Note>
+
+## Common Tuning Issues
+
+<AccordionGroup>
+  <Accordion title="Oscillation around target">
+    **Problem:** P gain too high
+    
+    **Solution:** Reduce P or increase D to dampen oscillations
+  </Accordion>
+  
+  <Accordion title="Slow response">
+    **Problem:** P gain too low
+    
+    **Solution:** Gradually increase P until response improves
+  </Accordion>
+  
+  <Accordion title="Steady-state error">
+    **Problem:** P and D cannot eliminate final error
+    
+    **Solution:** Add small I term with appropriate threshold and max values
+  </Accordion>
+  
+  <Accordion title="Overshoot and instability">
+    **Problem:** I term too large or no anti-windup
+    
+    **Solution:** Reduce I, set appropriate `maxIntegral`, or increase `integralThreshold`
+  </Accordion>
+</AccordionGroup>
+
+## Dual PID System
+
+Mars-RS uses separate PID controllers for different aspects of motion:
+
+```rust
+let mut lCont = util::Pid::new(lConstants);  // Linear velocity
+let mut rCont = util::Pid::new(rConstants);  // Angular velocity
+```
+
+The outputs are combined to generate differential wheel velocities:
+
+```rust
+let linearVel = lCont.out(linearError);
+let angularVel = rCont.out(rotationError);
+let rVel = linearVel - angularVel;
+let lVel = linearVel + angularVel;
+```
+
+This allows independent tuning of:
+- **Linear control:** How aggressively the robot moves toward targets
+- **Angular control:** How quickly the robot corrects heading errors
+
+<Tip>
+  Start with conservative values (low P) and gradually increase. It's easier to add aggression than to fix an unstable system.
+</Tip>
+
+## Mathematical Formula
+
+The complete PID formula implemented in Mars-RS:
+
+$$
+u(t) = K_p \cdot e(t) + K_i \cdot \sum e(t) + K_d \cdot (e(t) - e(t-1))
+$$
+
+Where:
+- $u(t)$ = control output
+- $e(t)$ = current error
+- $K_p$ = proportional gain
+- $K_i$ = integral gain
+- $K_d$ = derivative gain
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="Movement Algorithms" icon="route" href="/concepts/movement-algorithms">
+    See PID in action with movement functions
+  </Card>
+  <Card title="Robot Physics" icon="gear" href="/concepts/robot-physics">
+    Understand how PID output controls the robot
+  </Card>
+</CardGroup>

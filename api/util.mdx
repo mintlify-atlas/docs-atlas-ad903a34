@@ -1,0 +1,577 @@
+---
+title: 'Util'
+description: 'Utility functions, PID controllers, and geometric calculations'
+icon: 'calculator'
+---
+
+## Overview
+
+The util module provides essential utility functions for robotics calculations, including PID control, distance calculations, angle utilities, and drawing helpers. These are the building blocks for autonomous movement and control systems.
+
+## PID Control
+
+### PidConstants Struct
+
+```rust
+pub struct PidConstants {
+    pub p: f32,
+    pub i: f32,
+    pub d: f32,
+    pub tolerance: f32,
+    pub integralThreshold: f32,
+    pub maxIntegral: f32,
+}
+```
+
+Configuration parameters for a PID controller.
+
+<ParamField path="p" type="f32">
+  Proportional gain - responds to current error
+</ParamField>
+
+<ParamField path="i" type="f32">
+  Integral gain - responds to accumulated error over time
+</ParamField>
+
+<ParamField path="d" type="f32">
+  Derivative gain - responds to rate of error change
+</ParamField>
+
+<ParamField path="tolerance" type="f32">
+  Error threshold below which integral is reset to zero
+</ParamField>
+
+<ParamField path="integralThreshold" type="f32">
+  Error threshold below which integral accumulation begins
+</ParamField>
+
+<ParamField path="maxIntegral" type="f32">
+  Maximum allowed integral value (prevents integral windup)
+</ParamField>
+
+**Example:**
+
+```rust
+use mars_rs::util::PidConstants;
+
+let constants = PidConstants {
+    p: 0.05,
+    i: 0.001,
+    d: 0.01,
+    tolerance: 5.0,
+    integralThreshold: 50.0,
+    maxIntegral: 100.0
+};
+```
+
+#### new
+
+```rust
+pub fn new() -> PidConstants
+```
+
+Creates a PidConstants with all values set to 0.0 (useful as a starting point).
+
+### Pid Struct
+
+```rust
+pub struct Pid {
+    prevError: f32,
+    derivative: f32,
+    integral: f32,
+    constants: PidConstants
+}
+```
+
+PID controller implementation with state tracking.
+
+#### new
+
+```rust
+pub fn new(con: PidConstants) -> Pid
+```
+
+Creates a new PID controller with the given constants.
+
+<ParamField path="con" type="PidConstants" required>
+  Configuration parameters for the controller
+</ParamField>
+
+**Example:**
+
+```rust
+use mars_rs::util::{Pid, PidConstants};
+
+let constants = PidConstants {
+    p: 0.05,
+    i: 0.001,
+    d: 0.01,
+    tolerance: 5.0,
+    integralThreshold: 50.0,
+    maxIntegral: 100.0
+};
+
+let mut controller = Pid::new(constants);
+```
+
+#### out
+
+```rust
+pub fn out(&mut self, error: f32) -> f32
+```
+
+Calculates PID output based on current error.
+
+<ParamField path="error" type="f32" required>
+  Current error value (target - actual)
+</ParamField>
+
+**Returns:** `f32` - Control output value
+
+**Behavior:**
+- Resets integral if error is within tolerance
+- Only accumulates integral if error exceeds integral threshold
+- Clamps integral to maxIntegral
+- Calculates derivative from error change
+- Returns weighted sum: `P*error + I*integral + D*derivative`
+
+**Example:**
+
+```rust
+use mars_rs::util::{Pid, PidConstants};
+
+let mut controller = Pid::new(PidConstants {
+    p: 0.05,
+    i: 0.001,
+    d: 0.01,
+    tolerance: 5.0,
+    integralThreshold: 50.0,
+    maxIntegral: 100.0
+});
+
+// In control loop
+loop {
+    let target = 100.0;
+    let actual = get_sensor_value();
+    let error = target - actual;
+    
+    let output = controller.out(error);
+    set_motor_power(output);
+}
+```
+
+<Note>
+  PID controllers maintain internal state. Create separate controller instances for each control loop (e.g., one for position, one for heading).
+</Note>
+
+## Distance Functions
+
+### dist
+
+```rust
+pub fn dist(a: (f32, f32), b: (f32, f32)) -> f32
+```
+
+Calculates Euclidean distance between two points.
+
+<ParamField path="a" type="(f32, f32)" required>
+  First point coordinates (x, y)
+</ParamField>
+
+<ParamField path="b" type="(f32, f32)" required>
+  Second point coordinates (x, y)
+</ParamField>
+
+**Returns:** `f32` - Distance between points
+
+**Example:**
+
+```rust
+use mars_rs::util::dist;
+
+let robot_pos = (400.0, 300.0);
+let target_pos = (600.0, 500.0);
+
+let distance = dist(robot_pos, target_pos);
+println!("Distance to target: {}", distance);
+
+if distance < 50.0 {
+    println!("Reached target!");
+}
+```
+
+## Angle Utilities
+
+### absoluteAngleToPoint
+
+```rust
+pub fn absoluteAngleToPoint(p1: (f32, f32), p2: (f32, f32)) -> f32
+```
+
+Calculates the absolute angle from p1 to p2 in degrees (0-360).
+
+<ParamField path="p1" type="(f32, f32)" required>
+  Starting point (from)
+</ParamField>
+
+<ParamField path="p2" type="(f32, f32)" required>
+  Target point (to)
+</ParamField>
+
+**Returns:** `f32` - Angle in degrees (0° = up, increasing clockwise)
+
+**Example:**
+
+```rust
+use mars_rs::util::absoluteAngleToPoint;
+
+let robot_pos = (400.0, 300.0);
+let target_pos = (500.0, 400.0);
+
+let angle = absoluteAngleToPoint(robot_pos, target_pos);
+println!("Target is at {} degrees", angle);
+```
+
+<Note>
+  The coordinate system has 0° pointing up (negative Y direction) and increases clockwise. This matches typical robotics conventions.
+</Note>
+
+### dirToSpin
+
+```rust
+pub fn dirToSpin(target: f32, current: f32) -> i16
+```
+
+Determines the optimal direction to turn to reach target angle.
+
+<ParamField path="target" type="f32" required>
+  Target angle in degrees
+</ParamField>
+
+<ParamField path="current" type="f32" required>
+  Current angle in degrees
+</ParamField>
+
+**Returns:** `i16` - Turn direction (1 for clockwise, -1 for counterclockwise)
+
+**Example:**
+
+```rust
+use mars_rs::util::dirToSpin;
+
+let current_heading = 45.0;
+let target_heading = 315.0;
+
+let direction = dirToSpin(target_heading, current_heading);
+if direction > 0 {
+    println!("Turn clockwise");
+} else {
+    println!("Turn counterclockwise");
+}
+```
+
+### minError
+
+```rust
+pub fn minError(target: f32, current: f32) -> f32
+```
+
+Calculates the minimum signed angular error between two angles, accounting for 360° wraparound.
+
+<ParamField path="target" type="f32" required>
+  Target angle in degrees
+</ParamField>
+
+<ParamField path="current" type="f32" required>
+  Current angle in degrees
+</ParamField>
+
+**Returns:** `f32` - Signed error in degrees (positive = need to turn clockwise)
+
+**Example:**
+
+```rust
+use mars_rs::util::minError;
+
+// Robot at 350°, target at 10°
+let error = minError(10.0, 350.0);
+println!("Error: {}", error);  // 20.0 (turn clockwise)
+
+// Robot at 10°, target at 350°
+let error = minError(350.0, 10.0);
+println!("Error: {}", error);  // -20.0 (turn counterclockwise)
+```
+
+<Warning>
+  Always use `minError` for angular calculations to avoid the robot taking the long way around (e.g., turning 350° instead of 10°).
+</Warning>
+
+## Drawing Utilities
+
+### draw_arc
+
+```rust
+pub fn draw_arc(
+    center: Vec2,
+    r: f32,
+    start: f32,
+    end: f32,
+    color: Color
+)
+```
+
+Draws a filled circular arc.
+
+<ParamField path="center" type="Vec2" required>
+  Center point of the arc
+</ParamField>
+
+<ParamField path="r" type="f32" required>
+  Radius of the arc
+</ParamField>
+
+<ParamField path="start" type="f32" required>
+  Starting angle in radians
+</ParamField>
+
+<ParamField path="end" type="f32" required>
+  Ending angle in radians
+</ParamField>
+
+<ParamField path="color" type="Color" required>
+  Fill color
+</ParamField>
+
+**Example:**
+
+```rust
+use mars_rs::util::draw_arc;
+use macroquad::prelude::*;
+
+let center = vec2(400.0, 300.0);
+draw_arc(center, 50.0, 0.0, PI, RED);
+```
+
+### draw_arc_lines
+
+```rust
+pub fn draw_arc_lines(
+    center: Vec2,
+    r: f32,
+    start: f32,
+    end: f32,
+    thickness: f32,
+    color: Color
+)
+```
+
+Draws an arc outline with specified thickness.
+
+<ParamField path="center" type="Vec2" required>
+  Center point of the arc
+</ParamField>
+
+<ParamField path="r" type="f32" required>
+  Radius of the arc
+</ParamField>
+
+<ParamField path="start" type="f32" required>
+  Starting angle in radians
+</ParamField>
+
+<ParamField path="end" type="f32" required>
+  Ending angle in radians
+</ParamField>
+
+<ParamField path="thickness" type="f32" required>
+  Line thickness in pixels
+</ParamField>
+
+<ParamField path="color" type="Color" required>
+  Line color
+</ParamField>
+
+**Example:**
+
+```rust
+use mars_rs::util::draw_arc_lines;
+use macroquad::prelude::*;
+
+let center = vec2(400.0, 300.0);
+draw_arc_lines(center, 50.0, 0.0, PI, 3.0, BLUE);
+```
+
+## Macros
+
+### rotate!
+
+```rust
+rotate![$x: expr, $y: expr, $t: expr, $p: expr]
+```
+
+Rotates a point around another point by a given angle.
+
+<ParamField path="$x" type="expr" required>
+  X coordinate relative to rotation center
+</ParamField>
+
+<ParamField path="$y" type="expr" required>
+  Y coordinate relative to rotation center
+</ParamField>
+
+<ParamField path="$t" type="expr" required>
+  Rotation angle in radians
+</ParamField>
+
+<ParamField path="$p" type="expr" required>
+  Center point of rotation as (f32, f32)
+</ParamField>
+
+**Returns:** `Vec2` - Rotated point in absolute coordinates
+
+**Example:**
+
+```rust
+use mars_rs::util::rotate;
+use std::f32::consts::PI;
+
+let center = (400.0, 300.0);
+let angle = PI / 4.0;  // 45 degrees
+
+// Rotate point (10, 0) around center
+let rotated = rotate![10.0, 0.0, angle, center];
+println!("Rotated point: ({}, {})", rotated.x, rotated.y);
+```
+
+### hex!
+
+```rust
+hex![$x: expr]
+```
+
+Converts a hexadecimal color code to a Color.
+
+<ParamField path="$x" type="expr" required>
+  Hexadecimal color value (e.g., 0xFF5964)
+</ParamField>
+
+**Returns:** `Color` - macroquad Color object
+
+**Example:**
+
+```rust
+use mars_rs::hex;
+use macroquad::prelude::*;
+
+let red = hex!(0xFF5964);
+let blue = hex!(0x35A7FF);
+let purple = hex!(0xDCABDF);
+
+draw_circle(400.0, 300.0, 50.0, red);
+```
+
+### pub_struct!
+
+```rust
+pub_struct![$name:ident {$($field:ident: $t:ty,)*}]
+```
+
+Utility macro for creating public structs with all public fields and derived traits.
+
+**Generated Traits:**
+- Debug
+- Clone
+- Copy
+- PartialEq
+
+**Example:**
+
+```rust
+use mars_rs::pub_struct;
+
+pub_struct!(Point {
+    x: f32,
+    y: f32,
+});
+
+let p1 = Point { x: 10.0, y: 20.0 };
+let p2 = p1;  // Copy
+println!("{:?}", p1);  // Debug
+```
+
+## Complete PID Tuning Example
+
+```rust
+use mars_rs::{robot::Robot, movement, util};
+use std::sync::{Arc, Mutex};
+
+let robot = Arc::new(Mutex::new(Robot {
+    position: (400.0, 300.0),
+    heading: 0.0,
+    robotSize: 30.0
+}));
+
+// Step 1: Start with P-only control
+let mut linear_constants = util::PidConstants {
+    p: 0.01,  // Start low
+    i: 0.0,
+    d: 0.0,
+    tolerance: 5.0,
+    integralThreshold: 50.0,
+    maxIntegral: 100.0
+};
+
+// Step 2: Increase P until responsive but oscillates
+linear_constants.p = 0.05;
+
+// Step 3: Add D to reduce oscillation
+linear_constants.d = 0.01;
+
+// Step 4: Add I to eliminate steady-state error
+linear_constants.i = 0.001;
+
+// Rotation typically needs less aggressive tuning
+let rotation_constants = util::PidConstants {
+    p: 0.015,
+    i: 0.0,
+    d: 0.005,
+    tolerance: 2.0,
+    integralThreshold: 30.0,
+    maxIntegral: 50.0
+};
+
+movement::pidMTP(
+    &robot,
+    (600.0, 400.0),
+    90.0,
+    3000,
+    linear_constants,
+    rotation_constants,
+    0.5
+);
+```
+
+## Angle System Reference
+
+```
+        0° / 360°
+            |
+            N
+            |
+270° - W ---+--- E - 90°
+            |
+            S
+            |
+          180°
+```
+
+- 0° points upward (negative Y)
+- Angles increase clockwise
+- All angle functions handle 360° wraparound
+- Use `minError` for all angular PID calculations
+
+## See Also
+
+- [Movement](/api/movement) - Uses PID controllers and angle functions
+- [Robot](/api/robot) - Uses rotation utilities for rendering
+- [Field](/api/field) - Uses drawing utilities

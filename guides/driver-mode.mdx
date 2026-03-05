@@ -1,0 +1,114 @@
+---
+title: Driver Mode
+description: Learn how to control your robot using WASD keyboard controls in driver mode
+---
+
+## Overview
+
+Driver mode allows you to manually control the robot using keyboard inputs. The control system implements a differential drive model with velocity limiting and friction simulation.
+
+## Keyboard Controls
+
+The robot is controlled using the WASD keys:
+
+<CardGroup cols={2}>
+  <Card title="W Key" icon="arrow-up">
+    Move forward - increases linear velocity
+  </Card>
+  <Card title="S Key" icon="arrow-down">
+    Move backward - decreases linear velocity
+  </Card>
+  <Card title="A Key" icon="arrow-left">
+    Turn left - increases angular velocity
+  </Card>
+  <Card title="D Key" icon="arrow-right">
+    Turn right - decreases angular velocity
+  </Card>
+</CardGroup>
+
+## Velocity Limits
+
+The driver system enforces maximum velocity constraints to ensure realistic robot behavior:
+
+```rust
+const MAX_VEL: f32 = 4.0;   // Maximum linear velocity
+const MAX_AVEL: f32 = 0.07; // Maximum angular velocity
+```
+
+### Linear Velocity
+- Maximum forward/backward speed: **4.0 units/s**
+- Acceleration per keypress: **0.2 units/s**
+- Friction deceleration: **0.07 units/s** when no input
+
+### Angular Velocity
+- Maximum turning speed: **0.07 rad/s**
+- Turning acceleration: **0.0076 rad/s**
+- Friction deceleration: **0.005 rad/s** when no input
+
+## Differential Drive
+
+Mars-RS uses a differential drive model that converts linear and angular velocities into left and right wheel velocities:
+
+```rust
+let vr = (2.0 * vel.0 - track * vel.1) / 2.0;
+let vl = vr + (track * vel.1);
+
+robot.step((vl, vr));
+```
+
+Where:
+- `vel.0` is the linear velocity
+- `vel.1` is the angular velocity
+- `track` is the robot's track width (distance between wheels)
+- `vl` and `vr` are the left and right wheel velocities
+
+## Friction Simulation
+
+The driver mode includes friction to make the robot feel more realistic:
+
+```rust
+// Linear friction
+vel.0 = if absv > 0.07 {vel.0 - sgnv * 0.07} else {0.0};
+
+// Angular friction
+vel.1 = if absv1 > 0.005 {vel.1 - sgnv1 * 0.005} else {0.0};
+```
+
+This means the robot will gradually slow down when no keys are pressed, eventually coming to a complete stop.
+
+<Note>
+The friction values are tuned to provide smooth control while preventing the robot from sliding too much.
+</Note>
+
+## Switching Modes
+
+To enter driver mode:
+
+1. Press the **T** key to toggle between Driver and Auton modes
+2. Click the **Driver** button in the UI
+
+<Tip>
+Driver mode is the default mode when Mars-RS starts up.
+</Tip>
+
+## Implementation Details
+
+The driver code is located in `src/driver.rs:43-77`. The main `drive` function:
+
+1. Calculates absolute values and signs of current velocities
+2. Clamps velocities to maximum limits
+3. Applies friction to slow down the robot
+4. Processes WASD key inputs
+5. Converts to differential drive wheel velocities
+6. Updates robot position
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Autonomous Mode" icon="robot" href="/guides/autonomous-mode">
+    Learn about autonomous movement algorithms
+  </Card>
+  <Card title="Path Creation" icon="pen" href="/guides/path-creation">
+    Create paths for autonomous execution
+  </Card>
+</CardGroup>

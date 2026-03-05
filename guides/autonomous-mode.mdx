@@ -1,0 +1,224 @@
+---
+title: Autonomous Mode
+description: Execute precise autonomous movements using PID control and path following algorithms
+---
+
+## Overview
+
+Autonomous mode enables the robot to execute pre-programmed movements using advanced control algorithms. Mars-RS implements several movement primitives including PID move-to-point, boomerang controller, and pure pursuit path following.
+
+## Movement Algorithms
+
+### PID Move to Point
+
+The `pidMTP` function moves the robot to a target position using PID control:
+
+```rust
+pub fn pidMTP(
+    robot: &Arc<Mutex<robot::Robot>>, 
+    target: (f32, f32), 
+    rotationCut: f32, 
+    timeout: u16, 
+    lConstants: util::PidConstants, 
+    rConstants: util::PidConstants, 
+    min: f32
+)
+```
+
+**Parameters:**
+- `target`: Target (x, y) coordinates
+- `rotationCut`: Angle threshold for linear velocity scaling (degrees)
+- `timeout`: Maximum execution time (milliseconds)
+- `lConstants`: PID constants for linear movement
+- `rConstants`: PID constants for rotation
+- `min`: Minimum velocity threshold
+
+The algorithm calculates both linear and rotational error, then uses cosine scaling to reduce forward velocity when the robot is not facing the target.
+
+### Boomerang Controller
+
+The boomerang controller creates smooth curved paths to a target:
+
+```rust
+pub fn boomerang(
+    robot: &Arc<Mutex<robot::Robot>>, 
+    target: (f32, f32), 
+    timeout: u16, 
+    dLead: f32, 
+    thetaEnd: f32, 
+    rotationCut: f32, 
+    lConstants: util::PidConstants, 
+    rConstants: util::PidConstants, 
+    min: f32
+)
+```
+
+The boomerang uses a "carrot" point calculated ahead of the target:
+
+```rust
+let h = (pos.0 - target.0).hypot(pos.1 - target.1);
+let carrot = (
+    target.0 - (h * thetaEnd.sin() * dLead), 
+    target.1 - (h * thetaEnd.cos() * dLead)
+);
+```
+
+This creates a smooth approach curve that naturally aligns the robot with the desired ending angle.
+
+### Pure Pursuit Path Following
+
+Pure pursuit follows a path by looking ahead and targeting points on the path:
+
+```rust
+pub fn moveToPurePursuit(
+    robot: &Arc<Mutex<robot::Robot>>, 
+    path: Vec<(f32,f32)>, 
+    lookAhead: f32, 
+    lineLookAhead: usize, 
+    finalTimeout: u16
+)
+```
+
+**How it works:**
+
+1. Projects a look-ahead circle from the robot's current position
+2. Finds intersection points between the circle and path segments
+3. Targets the furthest valid intersection point
+4. Advances to next path segment when close enough (< 40 units)
+
+<Note>
+The default PID constants for pure pursuit are:
+- Linear: `p: 0.05, i: 0.0, d: 0.0`
+- Angular: `p: 0.015, i: 0.0, d: 0.0`
+</Note>
+
+## PID Control
+
+### PID Constants
+
+PID controllers use the following constants:
+
+```rust
+pub struct PidConstants {
+    pub p: f32,                // Proportional gain
+    pub i: f32,                // Integral gain
+    pub d: f32,                // Derivative gain
+    pub tolerance: f32,        // Error threshold to reset integral
+    pub integralThreshold: f32, // Error threshold to accumulate integral
+    pub maxIntegral: f32,      // Maximum integral accumulation
+}
+```
+
+### PID Output Calculation
+
+The PID controller implements the standard PID formula:
+
+```rust
+pub fn out(&mut self, error: f32) -> f32 {
+    if error.abs() < self.constants.tolerance {
+        self.integral = 0.0
+    }
+    else if error.abs() < self.constants.integralThreshold {
+        self.integral += error
+    };
+    
+    if self.integral > self.constants.maxIntegral {
+        self.integral = self.constants.maxIntegral
+    };
+    
+    self.derivative = error - self.prevError;
+    self.prevError = error;
+    
+    error * self.constants.p 
+        + self.integral * self.constants.i 
+        + self.derivative * self.constants.d
+}
+```
+
+## Path Following
+
+The `followPath` function combines multiple path points with the boomerang controller:
+
+```rust
+pub fn followPath(
+    robot: &Arc<Mutex<robot::Robot>>, 
+    path: Vec<(f32,f32)>, 
+    timeout: u32, 
+    dLead: f32, 
+    thetaEnd: f32, 
+    rotationCut: f32, 
+    lConstants: util::PidConstants, 
+    rConstants: util::PidConstants, 
+    min: f32
+)
+```
+
+The robot advances to the next waypoint when within **40 units** of the current target:
+
+```rust
+if util::dist(pos, target) < 40.0 {
+    if pathIndex < (path.len()-1) { pathIndex += 1 };
+}
+```
+
+## Switching to Autonomous Mode
+
+To enter autonomous mode:
+
+1. Press **T** to toggle from Driver mode
+2. Click the **Auton** button in the UI
+
+<Warning>
+You cannot switch between Driver and Auton modes while in Create mode.
+</Warning>
+
+## Motion Profiling (Experimental)
+
+Mars-RS includes experimental motion profiling for Bézier curves:
+
+```rust
+pub fn bezier2dMotionProfile(
+    path: paths::Bezier, 
+    maxSpeed: f32, 
+    accel: f32, 
+    decel: f32, 
+    resolution: i32, 
+    track: f32
+)
+```
+
+This generates trapezoidal velocity profiles with:
+- Acceleration phase
+- Constant velocity phase
+- Deceleration phase
+
+<Info>
+The motion profiling system is still under development and not yet fully implemented.
+</Info>
+
+## Example Usage
+
+Typical autonomous routine structure:
+
+```rust
+// Move to first position
+pidMTP(robot, (100.0, 100.0), 90.0, 2000, linearPID, angularPID, 0.5);
+
+// Use boomerang to approach at angle
+boomerang(robot, (200.0, 150.0), 3000, 0.5, 45.0, 90.0, linearPID, angularPID, 0.3);
+
+// Follow complete path
+let path = vec![(0.0, 0.0), (50.0, 50.0), (100.0, 50.0), (150.0, 100.0)];
+followPath(robot, path, 5000, 0.5, 0.0, 90.0, linearPID, angularPID, 0.2);
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card title="Driver Mode" icon="keyboard" href="/guides/driver-mode">
+    Manual control with WASD keys
+  </Card>
+  <Card title="Path Creation" icon="pen" href="/guides/path-creation">
+    Design paths for autonomous execution
+  </Card>
+</CardGroup>

@@ -1,0 +1,546 @@
+---
+title: 'Movement'
+description: 'Autonomous movement algorithms and path following'
+icon: 'route'
+---
+
+## Overview
+
+The movement module provides advanced autonomous movement algorithms for robot control, including PID-based motion, boomerang curves, path following, and pure pursuit. These functions are designed for VEX robotics competitions and implement industry-standard motion control techniques.
+
+## Movement Functions
+
+### pidMTPVel
+
+```rust
+pub fn pidMTPVel(
+    position: (f32, f32),
+    heading: f32,
+    target: (f32, f32),
+    rotationCut: f32,
+    lCont: &mut util::Pid,
+    rCont: &mut util::Pid,
+    min: f32
+) -> (f32, f32)
+```
+
+Calculates left and right wheel velocities to move toward a target point using PID control.
+
+<ParamField path="position" type="(f32, f32)" required>
+  Current robot position in pixels as (x, y)
+</ParamField>
+
+<ParamField path="heading" type="f32" required>
+  Current robot heading in degrees (0-360)
+</ParamField>
+
+<ParamField path="target" type="(f32, f32)" required>
+  Target position to move toward as (x, y)
+</ParamField>
+
+<ParamField path="rotationCut" type="f32" required>
+  Angle threshold in degrees for applying cosine scaling to forward velocity. Typical value: 90.0
+</ParamField>
+
+<ParamField path="lCont" type="&mut util::Pid" required>
+  PID controller for linear (forward) velocity
+</ParamField>
+
+<ParamField path="rCont" type="&mut util::Pid" required>
+  PID controller for angular (rotational) velocity
+</ParamField>
+
+<ParamField path="min" type="f32" required>
+  Minimum forward velocity to prevent stalling. Set to 0.0 to allow stopping
+</ParamField>
+
+**Returns:** `(f32, f32)` - Left and right wheel velocities
+
+**Example:**
+
+```rust
+use mars_rs::{movement, util};
+
+let mut linear_pid = util::Pid::new(util::PidConstants {
+    p: 0.05,
+    i: 0.0,
+    d: 0.0,
+    tolerance: 5.0,
+    integralThreshold: 50.0,
+    maxIntegral: 100.0
+});
+
+let mut rotation_pid = util::Pid::new(util::PidConstants {
+    p: 0.015,
+    i: 0.0,
+    d: 0.0,
+    tolerance: 2.0,
+    integralThreshold: 30.0,
+    maxIntegral: 50.0
+});
+
+let velocities = movement::pidMTPVel(
+    (400.0, 300.0),  // current position
+    45.0,            // current heading
+    (600.0, 400.0),  // target position
+    90.0,            // rotation cut
+    &mut linear_pid,
+    &mut rotation_pid,
+    0.5              // minimum velocity
+);
+
+println!("Left: {}, Right: {}", velocities.0, velocities.1);
+```
+
+<Note>
+  The rotation cut parameter controls when forward velocity is reduced due to large heading errors. When the heading error exceeds the rotation cut, forward velocity is scaled to 0.1 to prioritize turning.
+</Note>
+
+### pidMTP
+
+```rust
+pub fn pidMTP(
+    robot: &Arc<Mutex<robot::Robot>>,
+    target: (f32, f32),
+    rotationCut: f32,
+    timeout: u16,
+    lConstants: util::PidConstants,
+    rConstants: util::PidConstants,
+    min: f32
+)
+```
+
+Move To Point: Autonomously moves the robot to a target position using PID control.
+
+<ParamField path="robot" type="&Arc<Mutex<Robot>>" required>
+  Thread-safe reference to the robot
+</ParamField>
+
+<ParamField path="target" type="(f32, f32)" required>
+  Target position coordinates
+</ParamField>
+
+<ParamField path="rotationCut" type="f32" required>
+  Angle threshold for velocity scaling (typically 90.0)
+</ParamField>
+
+<ParamField path="timeout" type="u16" required>
+  Maximum movement time in milliseconds
+</ParamField>
+
+<ParamField path="lConstants" type="util::PidConstants" required>
+  PID constants for linear velocity control
+</ParamField>
+
+<ParamField path="rConstants" type="util::PidConstants" required>
+  PID constants for rotational velocity control
+</ParamField>
+
+<ParamField path="min" type="f32" required>
+  Minimum forward velocity
+</ParamField>
+
+**Example:**
+
+```rust
+use mars_rs::{robot::Robot, movement, util};
+use std::sync::{Arc, Mutex};
+
+let robot = Arc::new(Mutex::new(Robot {
+    position: (400.0, 300.0),
+    heading: 0.0,
+    robotSize: 30.0
+}));
+
+let pid_constants = util::PidConstants {
+    p: 0.05,
+    i: 0.001,
+    d: 0.01,
+    tolerance: 5.0,
+    integralThreshold: 50.0,
+    maxIntegral: 100.0
+};
+
+movement::pidMTP(
+    &robot,
+    (600.0, 400.0),
+    90.0,
+    3000,  // 3 second timeout
+    pid_constants,
+    pid_constants,
+    0.5
+);
+```
+
+### boomerang
+
+```rust
+pub fn boomerang(
+    robot: &Arc<Mutex<robot::Robot>>,
+    target: (f32, f32),
+    timeout: u16,
+    dLead: f32,
+    thetaEnd: f32,
+    rotationCut: f32,
+    lConstants: util::PidConstants,
+    rConstants: util::PidConstants,
+    min: f32
+)
+```
+
+Moves the robot to a target point while smoothly arriving at a specific heading angle. Creates smooth, curved trajectories.
+
+<ParamField path="robot" type="&Arc<Mutex<Robot>>" required>
+  Thread-safe reference to the robot
+</ParamField>
+
+<ParamField path="target" type="(f32, f32)" required>
+  Final target position
+</ParamField>
+
+<ParamField path="timeout" type="u16" required>
+  Maximum movement time in milliseconds
+</ParamField>
+
+<ParamField path="dLead" type="f32" required>
+  Lead distance for the carrot point (typically 0.3-0.7)
+</ParamField>
+
+<ParamField path="thetaEnd" type="f32" required>
+  Desired final heading angle in radians
+</ParamField>
+
+<ParamField path="rotationCut" type="f32" required>
+  Angle threshold for velocity scaling
+</ParamField>
+
+<ParamField path="lConstants" type="util::PidConstants" required>
+  PID constants for linear control
+</ParamField>
+
+<ParamField path="rConstants" type="util::PidConstants" required>
+  PID constants for rotation control
+</ParamField>
+
+<ParamField path="min" type="f32" required>
+  Minimum forward velocity
+</ParamField>
+
+**Example:**
+
+```rust
+use mars_rs::{robot::Robot, movement, util};
+use std::sync::{Arc, Mutex};
+use std::f32::consts::PI;
+
+let robot = Arc::new(Mutex::new(Robot {
+    position: (400.0, 300.0),
+    heading: 0.0,
+    robotSize: 30.0
+}));
+
+let pid_constants = util::PidConstants {
+    p: 0.05,
+    i: 0.0,
+    d: 0.0,
+    tolerance: 5.0,
+    integralThreshold: 50.0,
+    maxIntegral: 100.0
+};
+
+// Move to target while ending at 90 degrees
+movement::boomerang(
+    &robot,
+    (600.0, 400.0),
+    3000,
+    0.5,      // lead distance
+    PI / 2.0, // end at 90 degrees
+    90.0,
+    pid_constants,
+    pid_constants,
+    0.5
+);
+```
+
+<Note>
+  Boomerang creates smooth, curved paths by following a "carrot" point that leads toward the target. Adjust `dLead` to control how aggressive the curve is.
+</Note>
+
+### followPath
+
+```rust
+pub fn followPath(
+    robot: &Arc<Mutex<robot::Robot>>,
+    path: Vec<(f32, f32)>,
+    timeout: u32,
+    dLead: f32,
+    thetaEnd: f32,
+    rotationCut: f32,
+    lConstants: util::PidConstants,
+    rConstants: util::PidConstants,
+    min: f32
+)
+```
+
+Follows a sequence of waypoints using smooth transitions between points.
+
+<ParamField path="robot" type="&Arc<Mutex<Robot>>" required>
+  Thread-safe reference to the robot
+</ParamField>
+
+<ParamField path="path" type="Vec<(f32, f32)>" required>
+  Ordered list of waypoints to follow
+</ParamField>
+
+<ParamField path="timeout" type="u32" required>
+  Maximum time for entire path in milliseconds
+</ParamField>
+
+<ParamField path="dLead" type="f32" required>
+  Lead distance for carrot point
+</ParamField>
+
+<ParamField path="thetaEnd" type="f32" required>
+  Heading adjustment parameter (use 0.0 for default)
+</ParamField>
+
+<ParamField path="rotationCut" type="f32" required>
+  Angle threshold for velocity scaling
+</ParamField>
+
+<ParamField path="lConstants" type="util::PidConstants" required>
+  PID constants for linear control
+</ParamField>
+
+<ParamField path="rConstants" type="util::PidConstants" required>
+  PID constants for rotation control
+</ParamField>
+
+<ParamField path="min" type="f32" required>
+  Minimum forward velocity
+</ParamField>
+
+**Example:**
+
+```rust
+use mars_rs::{robot::Robot, movement, util};
+use std::sync::{Arc, Mutex};
+
+let robot = Arc::new(Mutex::new(Robot {
+    position: (400.0, 300.0),
+    heading: 0.0,
+    robotSize: 30.0
+}));
+
+let path = vec![
+    (450.0, 350.0),
+    (500.0, 400.0),
+    (550.0, 450.0),
+    (600.0, 400.0)
+];
+
+let pid_constants = util::PidConstants {
+    p: 0.05,
+    i: 0.0,
+    d: 0.0,
+    tolerance: 5.0,
+    integralThreshold: 50.0,
+    maxIntegral: 100.0
+};
+
+movement::followPath(
+    &robot,
+    path,
+    5000,  // 5 second timeout
+    0.5,
+    0.0,
+    90.0,
+    pid_constants,
+    pid_constants,
+    0.5
+);
+```
+
+<Warning>
+  The robot advances to the next waypoint when it comes within 40 pixels of the current target. Adjust this threshold in the source if you need different behavior.
+</Warning>
+
+### moveToPurePursuit
+
+```rust
+pub fn moveToPurePursuit(
+    robot: &Arc<Mutex<robot::Robot>>,
+    path: Vec<(f32, f32)>,
+    lookAhead: f32,
+    lineLookAhead: usize,
+    finalTimeout: u16
+)
+```
+
+Implements pure pursuit path following algorithm with look-ahead for smooth, predictive path tracking.
+
+<ParamField path="robot" type="&Arc<Mutex<Robot>>" required>
+  Thread-safe reference to the robot
+</ParamField>
+
+<ParamField path="path" type="Vec<(f32, f32)>" required>
+  List of waypoints defining the path
+</ParamField>
+
+<ParamField path="lookAhead" type="f32" required>
+  Look-ahead distance in pixels (typically 50-100)
+</ParamField>
+
+<ParamField path="lineLookAhead" type="usize" required>
+  Number of path segments to search ahead (typically 3-5)
+</ParamField>
+
+<ParamField path="finalTimeout" type="u16" required>
+  Maximum time in milliseconds
+</ParamField>
+
+**Example:**
+
+```rust
+use mars_rs::{robot::Robot, movement};
+use std::sync::{Arc, Mutex};
+
+let robot = Arc::new(Mutex::new(Robot {
+    position: (400.0, 300.0),
+    heading: 0.0,
+    robotSize: 30.0
+}));
+
+let path = vec![
+    (400.0, 300.0),
+    (450.0, 350.0),
+    (500.0, 400.0),
+    (550.0, 450.0),
+    (600.0, 500.0)
+];
+
+movement::moveToPurePursuit(
+    &robot,
+    path,
+    75.0,  // look-ahead distance
+    4,     // segments to look ahead
+    5000   // 5 second timeout
+);
+```
+
+<Note>
+  Pure pursuit is excellent for smooth, high-speed path following. The algorithm finds intersection points between a look-ahead circle and the path, creating natural curved trajectories.
+</Note>
+
+### eulerTurn
+
+```rust
+pub fn eulerTurn(
+    robot: &Arc<Mutex<robot::Robot>>,
+    theta: f32,
+    rate: f32,
+    curvature: f32,
+    timeout: u32,
+    dir: i8,
+    constants: util::PidConstants
+) -> f32
+```
+
+Performs a smooth turn to a target heading using Euler integration with variable curvature.
+
+<ParamField path="robot" type="&Arc<Mutex<Robot>>" required>
+  Thread-safe reference to the robot
+</ParamField>
+
+<ParamField path="theta" type="f32" required>
+  Target heading in degrees
+</ParamField>
+
+<ParamField path="rate" type="f32" required>
+  Rate of curvature change per iteration
+</ParamField>
+
+<ParamField path="curvature" type="f32" required>
+  Initial curvature value
+</ParamField>
+
+<ParamField path="timeout" type="u32" required>
+  Maximum turn time in milliseconds
+</ParamField>
+
+<ParamField path="dir" type="i8" required>
+  Turn direction: 1 for clockwise, -1 for counterclockwise
+</ParamField>
+
+<ParamField path="constants" type="util::PidConstants" required>
+  PID constants for turn control
+</ParamField>
+
+**Returns:** `f32` - Final curvature value after turn completes
+
+**Example:**
+
+```rust
+use mars_rs::{robot::Robot, movement, util};
+use std::sync::{Arc, Mutex};
+
+let robot = Arc::new(Mutex::new(Robot {
+    position: (400.0, 300.0),
+    heading: 0.0,
+    robotSize: 30.0
+}));
+
+let pid_constants = util::PidConstants {
+    p: 0.8,
+    i: 0.0,
+    d: 0.1,
+    tolerance: 2.0,
+    integralThreshold: 10.0,
+    maxIntegral: 50.0
+};
+
+// Turn to 90 degrees
+let final_curvature = movement::eulerTurn(
+    &robot,
+    90.0,     // target angle
+    0.001,    // curvature rate
+    0.0,      // initial curvature
+    2000,     // 2 second timeout
+    1,        // clockwise
+    pid_constants
+);
+```
+
+## PID Tuning Guide
+
+### Linear Movement
+
+```rust
+let linear_constants = util::PidConstants {
+    p: 0.05,              // Start low, increase until responsive
+    i: 0.001,             // Add small integral for steady-state error
+    d: 0.01,              // Add derivative to reduce overshoot
+    tolerance: 5.0,       // Error threshold to reset integral
+    integralThreshold: 50.0,
+    maxIntegral: 100.0
+};
+```
+
+### Rotation Control
+
+```rust
+let rotation_constants = util::PidConstants {
+    p: 0.015,             // Lower than linear for smoother turns
+    i: 0.0,               // Often not needed for rotation
+    d: 0.005,             // Helps prevent oscillation
+    tolerance: 2.0,
+    integralThreshold: 30.0,
+    maxIntegral: 50.0
+};
+```
+
+## See Also
+
+- [Robot](/api/robot) - Robot structure and basic control
+- [Util](/api/util) - PID controller and helper functions
+- [Paths](/api/paths) - Path creation and management
